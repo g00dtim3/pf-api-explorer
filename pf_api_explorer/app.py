@@ -1,7 +1,7 @@
-# pf_api_explorer/app.py
 import streamlit as st
 import requests
 import pandas as pd
+import datetime
 
 def fetch(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
@@ -26,9 +26,17 @@ def main():
             st.metric("Quota total", result['quota'])
             st.metric("Valable jusqu'au", result['end date'])
 
+    if st.sidebar.button("🔄 Réinitialiser les filtres"):
+        st.experimental_rerun()
+
     st.sidebar.header("Filtres")
-    start_date = st.sidebar.date_input("Date de début")
-    end_date = st.sidebar.date_input("Date de fin")
+    start_date = st.sidebar.date_input("Date de début", value=datetime.date(2024, 1, 1))
+    end_date = st.sidebar.date_input("Date de fin", value=datetime.date(2024, 6, 30))
+
+    params_base = []
+    if start_date: params_base.append(f"start-date={start_date}")
+    if end_date: params_base.append(f"end-date={end_date}")
+    query_base = "&".join(params_base)
 
     categories = fetch("/categories")
     all_categories = [c["category"] for c in categories.get("categories", [])]
@@ -40,10 +48,10 @@ def main():
             subcategory_options = cat["subcategories"]
     subcategory = st.sidebar.selectbox("Sous-catégorie", subcategory_options)
 
-    brands = fetch("/brands")
+    brands = fetch("/brands", f"category={category}&subcategory={subcategory}")
     brand = st.sidebar.multiselect("Marques", brands.get("brands", []))
 
-    products = fetch("/products", f"brand={brand[0]}" if brand else "")
+    products = fetch("/products", f"brand={brand[0]}&category={category}&subcategory={subcategory}" if brand else f"category={category}&subcategory={subcategory}")
     product_list = products.get("products", []) if products else []
     search_text = st.sidebar.text_input("🔍 Rechercher un produit")
     filtered_products = [p for p in product_list if search_text.lower() in p.lower()]
@@ -52,17 +60,14 @@ def main():
     countries = fetch("/countries")
     country = st.sidebar.multiselect("Pays", countries.get("countries", []))
 
-    sources = fetch("/sources")
+    sources = fetch("/sources", f"country={country[0]}" if country else "")
     source = st.sidebar.multiselect("Sources", sources.get("sources", []))
 
     markets = fetch("/markets")
     market = st.sidebar.multiselect("Markets", markets.get("markets", []))
 
-    mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
-
-    params = []
-    if start_date: params.append(f"start-date={start_date}")
-    if end_date: params.append(f"end-date={end_date}")
+    # Paramètres cumulés pour mise à jour dynamique
+    params = params_base.copy()
     if category: params.append(f"category={category}")
     if subcategory: params.append(f"subcategory={subcategory}")
     if brand: params.append(f"brand={','.join(brand)}")
@@ -72,6 +77,16 @@ def main():
     if market: params.append(f"market={','.join(market)}")
 
     query_string = "&".join(params)
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Disponibilité des données")
+    dynamic_metrics = fetch("/metrics", query_string)
+    if dynamic_metrics and dynamic_metrics.get("nbDocs"):
+        st.sidebar.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+    else:
+        st.sidebar.warning("Aucune review disponible pour cette combinaison")
+
+    mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
 
     if st.button("Lancer la requête"):
         if mode == "Métriques (metrics)":
