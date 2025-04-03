@@ -88,3 +88,6 @@ def main():
                 st.download_button("📄 Télécharger en Excel", df.to_excel(index=False, engine='openpyxl'), file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
                 st.warning("Aucune review trouvée pour ces critères.")
+
+if __name__ == "__main__":
+    main()
