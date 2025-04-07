@@ -221,14 +221,14 @@ def main():
         heatmap = alt.Chart(df_sentiments).mark_rect().encode(
             x=alt.X("Attribut:N", title="Attribut"),
             y=alt.Y("Produit:N", title="Produit"),
-            color=alt.Color("Indice:Q",
-                                scale=alt.Scale(scheme='redblue', domainMid=0),
-                                title="Indice (Positifs - Négatifs)"),
-                tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
+            color=alt.Color("Indice %:Q",
+                            scale=alt.Scale(scheme='redblue', domainMid=0),
+                            title="Indice (%) - Sentiment net en %"),
+            tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice", "Indice %"]
         ).properties(
-                width=600,
-                height=400,
-                title="Heatmap - Indice de sentiment par attribut et produit"
+            width=600,
+            height=400,
+            title="Heatmap - Indice de sentiment par attribut et produit"
         )
         st.altair_chart(heatmap, use_container_width=True)
 
