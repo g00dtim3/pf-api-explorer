@@ -30,8 +30,15 @@ def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
     return fetch_cached("/products", "&".join(params))
 
 @st.cache_data(ttl=3600)
-def fetch_attributes():
-    return fetch_cached("/attributes")
+def fetch_attributes_dynamic(category, subcategory, brand):
+    filters = []
+    if category != "ALL":
+        filters.append(f"category={category}")
+    if subcategory != "ALL":
+        filters.append(f"subcategory={subcategory}")
+    if brand:
+        filters.append(f"brand={','.join(brand)}")
+    return fetch_cached("/attributes", "&".join(filters))
 
 # Utilisé uniquement pour requêtes non-cachables (avec refresh ou pagination)
 def fetch(endpoint, params=""):
@@ -90,7 +97,8 @@ def main():
         all_markets = ["ALL"] + markets.get("markets", [])
         market = st.multiselect("Markets", all_markets)
 
-        attribute_options = fetch_attributes().get("attributes", [])
+        attribute_data = fetch_attributes_dynamic(category, subcategory, brand)
+        attribute_options = attribute_data.get("attributes", [])
         attributes = st.multiselect("Attributs", attribute_options)
         attributes_positive = st.multiselect("Attributs positifs", attribute_options)
         attributes_negative = st.multiselect("Attributs négatifs", attribute_options)
