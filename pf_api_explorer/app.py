@@ -157,68 +157,68 @@ def main():
 
     query_string = "&".join(params)
 
-    product_info = {}
-    product_data = []
+   st.subheader("📈 Vue des métriques par attribut")
+    if attributes:
+        metric_rows = []
+        for attr in attributes:
+            attr_param = f"{query_string}&attribute={attr}"
+            result = fetch("/metrics", attr_param)
+            count = result.get("nbDocs", 0) if result else 0
+            metric_rows.append({"Attribut": attr, "Reviews": count})
+        df_metrics = pd.DataFrame(metric_rows)
+        st.dataframe(df_metrics)
+        csv = df_metrics.to_csv(index=False)
+        st.download_button("📥 Télécharger les métriques (CSV)", csv, file_name="metrics_par_attribut.csv", mime="text/csv")
 
+    st.success("Filtrage appliqué. Ajoute une section d'affichage ou d'export ici si besoin.")
+
+    # Écran supplémentaire : nombre de reviews par produit
+    st.subheader("📊 Nombre de reviews par produit")
     if brand:
-        with st.spinner("Chargement des produits par marque..."):
-            for i, b in enumerate(brand):
-                st.write(f"🔎 {i+1}/{len(brand)} : {b}")
-                products = fetch_products_by_brand(b, category, subcategory, start_date, end_date)
-                if products and products.get("products"):
-                    for p in products["products"]:
-                        label = f"{b} > {p}"
-                        product_info[label] = p
-                        product_data.append({"Marque": b, "Produit": p})
-
-    if product_data:
-        st.subheader("📊 Produits disponibles")
-        df_products = pd.DataFrame(product_data)
+        product_rows = []
+        for b in brand:
+            product_list = fetch("/products", f"brand={b}&start-date={start_date}&end-date={end_date}")
+            if product_list and "products" in product_list:
+                for p in product_list["products"]:
+                    metric = fetch("/metrics", f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}")
+                    count = metric.get("nbDocs", 0) if metric else 0
+                    product_rows.append({"Marque": b, "Produit": p, "Reviews": count})
+        df_products = pd.DataFrame(product_rows)
         st.dataframe(df_products)
 
-    search_text = st.text_input("🔍 Rechercher un produit")
-    display_list = [k for k in product_info if search_text.lower() in k.lower()]
-    selected_display = st.multiselect("Produits", display_list)
-    selected_products = [product_info[label] for label in selected_display]
+    # Écran supplémentaire : répartition positif / négatif par attribut et produit
+    st.subheader("📊 Répartition Positif / Négatif par Attribut et Produit")
+    if attributes and brand:
+        sentiment_rows = []
+        for b in brand:
+            product_list = fetch("/products", f"brand={b}&start-date={start_date}&end-date={end_date}")
+            if product_list and "products" in product_list:
+                for p in product_list["products"]:
+                    for attr in attributes:
+                        pos = fetch("/metrics", f"brand={b}&product={p}&attribute-positive={attr}&start-date={start_date}&end-date={end_date}")
+                        neg = fetch("/metrics", f"brand={b}&product={p}&attribute-negative={attr}&start-date={start_date}&end-date={end_date}")
+                        sentiment_rows.append({
+                            "Marque": b,
+                            "Produit": p,
+                            "Attribut": attr,
+                            "Positifs": pos.get("nbDocs", 0) if pos else 0,
+                            "Négatifs": neg.get("nbDocs", 0) if neg else 0
+                        })
+        df_sentiments = pd.DataFrame(sentiment_rows)
+        st.dataframe(df_sentiments)
+        csv_sent = df_sentiments.to_csv(index=False)
+        st.download_button("📥 Exporter répartition attributs", csv_sent, file_name="repartition_attributs.csv", mime="text/csv")
 
-    if selected_products:
-        params.append(f"product={','.join(selected_products)}")
-
-    query_string = "&".join(params)
-
-    st.markdown("---")
-    st.subheader("Disponibilité des données")
-    dynamic_metrics = fetch("/metrics", query_string)
-    if dynamic_metrics and dynamic_metrics.get("nbDocs"):
-        st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+def fetch(endpoint, params=""):
+    BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
+    TOKEN = "JbK3Iyxcw2EwKQKke0rAQJ6eEHaph1ifP5smlHIemlDmGqB5l3j997pcab92ty9r"
+    url = f"{BASE_URL}{endpoint}?token={TOKEN}&{params}"
+    response = requests.get(url, headers={"Accept": "application/json"})
+    if response.status_code == 200:
+        return response.json().get("result")
     else:
-        st.warning("Aucune review disponible pour cette combinaison")
-
-    mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
-
-    if st.button("Lancer la requête"):
-        if mode == "Métriques (metrics)":
-            result = fetch("/metrics", query_string)
-            st.json(result)
-        else:
-            query_string += "&rows=100"
-            result = fetch("/reviews", query_string)
-            docs = result.get("docs", []) if result else []
-            if docs:
-                df = pd.json_normalize(docs)
-                df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                st.dataframe(df)
-                csv = df.to_csv(index=False)
-
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
-                excel_data = excel_buffer.getvalue()
-
-                st.download_button("📂 Télécharger en CSV", csv, file_name="reviews.csv", mime="text/csv")
-                st.download_button("📄 Télécharger en Excel", excel_data, file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            else:
-                st.warning("Aucune review trouvée pour ces critères.")
+        st.error(f"Erreur {response.status_code} sur {url}")
+        return {}
 
 if __name__ == "__main__":
     main()
