@@ -249,7 +249,7 @@ def main():
                 height=400,
                 title="Heatmap - Indice de sentiment par attribut et produit"
             )
-                    text = alt.Chart(df_sentiments).mark_text(baseline="middle", fontSize=10, color="black").encode(
+            text = alt.Chart(df_sentiments).mark_text(baseline="middle", fontSize=10, color="black").encode(
                 x=alt.X("Attribut:N"),
                 y=alt.Y("Produit:N"),
                 text=alt.Text("Indice %:Q", format=".1f")
