@@ -14,12 +14,28 @@ def main():
         st.session_state.start_date = st.date_input("Date de début", value=st.session_state.start_date)
         st.session_state.end_date = st.date_input("Date de fin", value=st.session_state.end_date)
 
-        st.session_state.category = st.selectbox("Catégorie", ["ALL"])
-        st.session_state.subcategory = st.selectbox("Sous-catégorie", ["ALL"])
-        st.session_state.brand = st.multiselect("Marques", [])
-        st.session_state.country = st.multiselect("Pays", ["ALL"])
-        st.session_state.source = st.multiselect("Sources", ["ALL"])
-        st.session_state.market = st.multiselect("Markets", ["ALL"])
+        categories_data = fetch("/categories")
+        all_categories = ["ALL"] + [c["category"] for c in categories_data.get("categories", [])]
+        st.session_state.category = st.selectbox("Catégorie", all_categories)
+        subcategory_options = ["ALL"]
+        if st.session_state.category != "ALL":
+            for c in categories_data.get("categories", []):
+                if c["category"] == st.session_state.category:
+                    subcategory_options += c["subcategories"]
+        st.session_state.subcategory = st.selectbox("Sous-catégorie", subcategory_options)
+        brand_filters = []
+        if st.session_state.category != "ALL":
+            brand_filters.append(f"category={st.session_state.category}")
+        if st.session_state.subcategory != "ALL":
+            brand_filters.append(f"subcategory={st.session_state.subcategory}")
+        brands_data = fetch("/brands", "&".join(brand_filters))
+        st.session_state.brand = st.multiselect("Marques", brands_data.get("brands", []))
+        countries_data = fetch("/countries")
+        st.session_state.country = st.multiselect("Pays", ["ALL"] + countries_data.get("countries", []))
+        sources_data = fetch("/sources", f"country={st.session_state.country[0]}" if st.session_state.country and st.session_state.country[0] != "ALL" else "")
+        st.session_state.source = st.multiselect("Sources", ["ALL"] + sources_data.get("sources", []))
+        markets_data = fetch("/markets")
+        st.session_state.market = st.multiselect("Markets", ["ALL"] + markets_data.get("markets", []))
 
         st.session_state.attributes = st.multiselect("Attributs", [])
         st.session_state.attributes_positive = st.multiselect("Attributs positifs", [])
@@ -96,6 +112,23 @@ def main():
         st.download_button("📥 Télécharger les métriques (CSV)", csv, file_name="metrics_par_attribut.csv", mime="text/csv")
 
     st.success("Filtrage appliqué. Ajoute une section d'affichage ou d'export ici si besoin.")
+
+    # 🔍 Sélection interactive de produits après sélection des marques
+    if brand:
+        product_labels = []
+        product_map = {}
+        for b in brand:
+            product_list = fetch("/products", f"brand={b}&start-date={start_date}&end-date={end_date}")
+            if product_list and "products" in product_list:
+                for p in product_list["products"]:
+                    label = f"{b} > {p}"
+                    product_labels.append(label)
+                    product_map[label] = {"brand": b, "product": p}
+
+        selected_products_display = st.multiselect("🎯 Filtrer les produits à analyser", product_labels)
+        selected_products = [product_map[label] for label in selected_products_display]
+    else:
+        selected_products = []
 
     # Écran supplémentaire : nombre de reviews par produit
     st.subheader("📊 Nombre de reviews par produit")
