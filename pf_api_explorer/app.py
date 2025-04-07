@@ -165,11 +165,19 @@ def main():
             query_string += "&rows=100"
             result = fetch("/reviews", query_string)
             docs = result.get("docs", []) if result else []
+
             if docs:
-                df = pd.DataFrame(docs)
+                # Normalisation et filtrage des colonnes valides
+                df = pd.json_normalize(docs)
+            
+                # Optionnel : filtrer les colonnes simples (évite ArrowInvalid)
+                allowed_types = (int, float, str, bool, type(None), datetime.date, datetime.datetime)
+                df = df[[col for col in df.columns if df[col].map(type).isin(allowed_types).all()]]
+            
                 st.dataframe(df)
+            
                 st.download_button("📂 Télécharger en CSV", df.to_csv(index=False), file_name="reviews.csv", mime="text/csv")
-                st.download_button("📄 Télécharger en Excel", df.to_excel(index=False, engine='openpyxl'), file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button("📄 Télécharger en Excel", df.to_excel(index=False, engine='openpyxl'), file_name="reviews.xlsx", mime="application/vnd.openxml_
             else:
                 st.warning("Aucune review trouvée pour ces critères.")
 
