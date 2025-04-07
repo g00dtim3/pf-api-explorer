@@ -214,6 +214,9 @@ def main():
             })
 
     df_sentiments = pd.DataFrame(sentiments)
+    df_sentiments["Total"] = df_sentiments["Positifs"] + df_sentiments["Négatifs"]
+    df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
+    df_sentiments["Indice %"] = df_sentiments.apply(lambda row: (row["Indice"] / row["Total"] * 100) if row["Total"] > 0 else 0, axis=1)
     st.dataframe(df_sentiments)
 
     if not df_sentiments.empty:
