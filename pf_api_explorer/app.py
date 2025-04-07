@@ -130,10 +130,10 @@ def main():
     else:
         selected_products = []
 
-    # Écran supplémentaire : nombre de reviews par produit
+ # Écran supplémentaire : nombre de reviews par produit
     st.subheader("📊 Nombre de reviews par produit")
     if selected_products:
-    with st.spinner("🔄 Récupération des reviews par produit..."):
+        with st.spinner("🔄 Récupération des reviews par produit..."):
         product_rows = []
         for entry in selected_products:
             b = entry["brand"]
@@ -146,7 +146,7 @@ def main():
 
     # Écran supplémentaire : répartition positif / négatif par attribut et produit
     if attributes and selected_products:
-    with st.spinner("🔄 Analyse des sentiments par attribut..."):
+        with st.spinner("🔄 Analyse des sentiments par attribut..."):
         sentiment_rows = []
         for entry in selected_products:
             b = entry["brand"]
