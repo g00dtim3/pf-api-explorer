@@ -119,13 +119,9 @@ def main():
                 "attributes_negative": attributes_negative
             }
 
-    if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
+   if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
         st.info("Appliquez les filtres pour afficher les données.")
         return
-
-        if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
-            st.info("Appliquez les filtres pour afficher les données.")
-            return
 
     filters = st.session_state.filters
     start_date = filters["start_date"]
