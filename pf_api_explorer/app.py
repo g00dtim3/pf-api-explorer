@@ -134,6 +134,7 @@ def main():
     st.subheader("📊 Nombre de reviews par produit")
     if selected_products:
         with st.spinner("🔄 Récupération des reviews par produit..."):
+            product_rows = []
         product_rows = []
         for entry in selected_products:
             b = entry["brand"]
@@ -148,6 +149,7 @@ def main():
     st.subheader("📊 Répartition Positif / Négatif par Attribut et Produit")
     if attributes and selected_products:
         with st.spinner("🔄 Analyse des sentiments par attribut..."):
+            sentiment_rows = []
         sentiment_rows = []
         for entry in selected_products:
             b = entry["brand"]
