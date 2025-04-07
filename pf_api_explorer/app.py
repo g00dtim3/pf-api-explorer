@@ -132,9 +132,9 @@ def main():
     country = filters["country"]
     source = filters["source"]
     market = filters["market"]
-    attributes = filters.get("attributes", [])
-    attributes_positive = filters.get("attributes_positive", [])
-    attributes_negative = filters.get("attributes_negative", [])
+    attributes = filters["attributes"]
+    attributes_positive = filters["attributes_positive"]
+    attributes_negative = filters["attributes_negative"]
 
     st.markdown("## 🧾 Résumé des filtres appliqués")
     st.markdown(f"- **Dates** : du `{start_date}` au `{end_date}`")
@@ -160,15 +160,68 @@ def main():
 
     query_string = "&".join(params)
 
-    st.subheader("📈 Vue des métriques par attribut")
-    if attributes:
-        metric_rows = []
-        for attr in attributes:
-            attr_param = f"{query_string}&attribute={attr}"
-            result = fetch("/metrics", attr_param)
-            count = result.get("nbDocs", 0) if result else 0
-            metric_rows.append({"Attribut": attr, "Reviews": count})
-        df_metrics = pd.DataFrame(metric_rows)
-        st.dataframe(df_metrics)
+    product_info = {}
+    product_data = []
 
-    st.success("Filtrage appliqué. Ajoute une section d'affichage ou d'export ici si besoin.")
+    if brand:
+        with st.spinner("Chargement des produits par marque..."):
+            for i, b in enumerate(brand):
+                st.write(f"🔎 {i+1}/{len(brand)} : {b}")
+                products = fetch_products_by_brand(b, category, subcategory, start_date, end_date)
+                if products and products.get("products"):
+                    for p in products["products"]:
+                        label = f"{b} > {p}"
+                        product_info[label] = p
+                        product_data.append({"Marque": b, "Produit": p})
+
+    if product_data:
+        st.subheader("📊 Produits disponibles")
+        df_products = pd.DataFrame(product_data)
+        st.dataframe(df_products)
+
+    search_text = st.text_input("🔍 Rechercher un produit")
+    display_list = [k for k in product_info if search_text.lower() in k.lower()]
+    selected_display = st.multiselect("Produits", display_list)
+    selected_products = [product_info[label] for label in selected_display]
+
+    if selected_products:
+        params.append(f"product={','.join(selected_products)}")
+
+    query_string = "&".join(params)
+
+    st.markdown("---")
+    st.subheader("Disponibilité des données")
+    dynamic_metrics = fetch("/metrics", query_string)
+    if dynamic_metrics and dynamic_metrics.get("nbDocs"):
+        st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+    else:
+        st.warning("Aucune review disponible pour cette combinaison")
+
+    mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
+
+    if st.button("Lancer la requête"):
+        if mode == "Métriques (metrics)":
+            result = fetch("/metrics", query_string)
+            st.json(result)
+        else:
+            query_string += "&rows=100"
+            result = fetch("/reviews", query_string)
+            docs = result.get("docs", []) if result else []
+            if docs:
+                df = pd.json_normalize(docs)
+                df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+                st.dataframe(df)
+                csv = df.to_csv(index=False)
+
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False)
+                excel_data = excel_buffer.getvalue()
+
+                st.download_button("📂 Télécharger en CSV", csv, file_name="reviews.csv", mime="text/csv")
+                st.download_button("📄 Télécharger en Excel", excel_data, file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            else:
+                st.warning("Aucune review trouvée pour ces critères.")
+
+if __name__ == "__main__":
+    main()
