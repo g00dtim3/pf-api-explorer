@@ -31,8 +31,8 @@ def main():
         return
 
     st.sidebar.header("Filtres")
-    start_date = st.sidebar.date_input("Date de début", value=datetime.date(2024, 1, 1))
-    end_date = st.sidebar.date_input("Date de fin", value=datetime.date(2024, 6, 30))
+    start_date = st.sidebar.date_input("Date de début", value=datetime.date(2022, 1, 1))
+    end_date = st.sidebar.date_input("Date de fin", value=datetime.date.today())
 
     params_base = []
     if start_date: params_base.append(f"start-date={start_date}")
