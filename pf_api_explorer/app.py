@@ -28,7 +28,7 @@ def main():
 
     if st.sidebar.button("🔄 Réinitialiser les filtres"):
         st.experimental_rerun()
-        return  # Stoppe proprement la fonction main()
+        return
 
     st.sidebar.header("Filtres")
     start_date = st.sidebar.date_input("Date de début", value=datetime.date(2024, 1, 1))
@@ -49,14 +49,38 @@ def main():
             subcategory_options = cat["subcategories"]
     subcategory = st.sidebar.selectbox("Sous-catégorie", subcategory_options)
 
-    brands = fetch("/brands", f"category={category}&subcategory={subcategory}")
+    brands_params = f"category={category}&subcategory={subcategory}"
+    brands = fetch("/brands", brands_params)
     brand = st.sidebar.multiselect("Marques", brands.get("brands", []))
 
-    products = fetch("/products", f"brand={brand[0]}&category={category}&subcategory={subcategory}" if brand else f"category={category}&subcategory={subcategory}")
-    product_list = products.get("products", []) if products else []
+    # Produits groupés par marque + compteur de reviews
+    product_info = {}
+    product_data = []
+    for b in brand:
+        product_params = f"category={category}&subcategory={subcategory}&brand={b}"
+        products = fetch("/products", product_params)
+        if products and products.get("products"):
+            for p in products["products"]:
+                metric_param = f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}"
+                metric = fetch("/metrics", metric_param)
+                volume = metric.get("nbDocs", 0) if metric else 0
+                label = f"{b} > {p} ({volume})"
+                product_info[label] = p
+                product_data.append({"Marque": b, "Produit": p, "Reviews": volume})
+
+    # Affichage immédiat du tableau des produits par marque
+    if product_data:
+        st.subheader("📊 Produits disponibles")
+        df_products = pd.DataFrame(product_data).sort_values(by="Reviews", ascending=False)
+        st.dataframe(df_products)
+
+        st.markdown("**Top 5 produits les plus populaires**")
+        st.table(df_products.head(5))
+
     search_text = st.sidebar.text_input("🔍 Rechercher un produit")
-    filtered_products = [p for p in product_list if search_text.lower() in p.lower()]
-    selected_products = st.sidebar.multiselect("Produits", filtered_products)
+    display_list = [k for k in product_info if search_text.lower() in k.lower()]
+    selected_display = st.sidebar.multiselect("Produits", display_list)
+    selected_products = [product_info[label] for label in selected_display]
 
     countries = fetch("/countries")
     country = st.sidebar.multiselect("Pays", countries.get("countries", []))
@@ -67,7 +91,6 @@ def main():
     markets = fetch("/markets")
     market = st.sidebar.multiselect("Markets", markets.get("markets", []))
 
-    # Paramètres cumulés pour mise à jour dynamique
     params = params_base.copy()
     if category: params.append(f"category={category}")
     if subcategory: params.append(f"subcategory={subcategory}")
