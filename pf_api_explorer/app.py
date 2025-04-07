@@ -26,9 +26,9 @@ def main():
             st.metric("Quota total", result['quota'])
             st.metric("Valable jusqu'au", result['end date'])
 
-   if st.sidebar.button("🔄 Réinitialiser les filtres"):
-    st.experimental_rerun()
-    return  # Stoppe proprement la fonction main()
+    if st.sidebar.button("🔄 Réinitialiser les filtres"):
+        st.experimental_rerun()
+        return  # Stoppe proprement la fonction main()
 
     st.sidebar.header("Filtres")
     start_date = st.sidebar.date_input("Date de début", value=datetime.date(2024, 1, 1))
