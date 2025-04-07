@@ -133,22 +133,20 @@ def main():
     # Écran supplémentaire : nombre de reviews par produit
     st.subheader("📊 Nombre de reviews par produit")
     if selected_products:
-        with st.spinner("🔄 Récupération des reviews par produit..."):
-            product_rows = []
+    with st.spinner("🔄 Récupération des reviews par produit..."):
+        product_rows = []
         for entry in selected_products:
             b = entry["brand"]
             p = entry["product"]
             metric = fetch("/metrics", f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}")
             count = metric.get("nbDocs", 0) if metric else 0
             product_rows.append({"Marque": b, "Produit": p, "Reviews": count})
-        df_products = pd.DataFrame(product_rows)
-        st.dataframe(df_products)
+
 
     # Écran supplémentaire : répartition positif / négatif par attribut et produit
-    st.subheader("📊 Répartition Positif / Négatif par Attribut et Produit")
     if attributes and selected_products:
-        with st.spinner("🔄 Analyse des sentiments par attribut..."):
-            sentiment_rows = []
+    with st.spinner("🔄 Analyse des sentiments par attribut..."):
+        sentiment_rows = []
         for entry in selected_products:
             b = entry["brand"]
             p = entry["product"]
@@ -162,6 +160,7 @@ def main():
                     "Positifs": pos.get("nbDocs", 0) if pos else 0,
                     "Négatifs": neg.get("nbDocs", 0) if neg else 0
                 })
+
         df_sentiments = pd.DataFrame(sentiment_rows)
         st.dataframe(df_sentiments)
         csv_sent = df_sentiments.to_csv(index=False)
