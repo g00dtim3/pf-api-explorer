@@ -43,12 +43,12 @@ def main():
         products = products_data.get("products", []) if products_data else []
 
         if len(products) == 1:
-            selected_products = [products[0]]
-        else:
-            selected_products = st.multiselect("Produits", products, default=products[:10])
+        selected_products = [products[0]]
+    else:
+        selected_products = st.multiselect("Produits", products, default=products[:10])
 
-        if not selected_products:
-            st.info("Veuillez sélectionner des produits pour afficher les résultats.")
+    if not selected_products:
+        st.info("Veuillez sélectionner des produits pour afficher les résultats.")
         return
 
     st.subheader("📊 Nombre de reviews par produit")
