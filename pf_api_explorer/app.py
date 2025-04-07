@@ -5,7 +5,7 @@ import datetime
 import io
 import altair as alt
 
-st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
+st.set_page_config(page_title="Explorateur API Ratings & Reviews : Analytics", layout="wide")
 
 st.session_state.setdefault("apply_filters", False)
 
