@@ -222,7 +222,7 @@ def main():
             x=alt.X("Attribut:N", title="Attribut"),
             y=alt.Y("Produit:N", title="Produit"),
             color=alt.Color("Indice:Q",
-                                scale=alt.Scale(scheme='redgreen', domainMid=0),
+                                scale=alt.Scale(scheme='redblue', domainMid=0),
                                 title="Indice (Positifs - Négatifs)"),
                 tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
         ).properties(
