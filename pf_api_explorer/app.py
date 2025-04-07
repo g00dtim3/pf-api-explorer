@@ -241,22 +241,23 @@ def main():
             x=alt.X("Attribut:N", title="Attribut"),
             y=alt.Y("Produit:N", title="Produit"),
             color=alt.Color("Indice %:Q",
-                                scale=alt.Scale(scheme='redblue', domainMid=0),
-                                title="Indice (%) - Sentiment net en %"),
+                            scale=alt.Scale(scheme='redblue', domainMid=0),
+                            title="Indice (%) - Sentiment net en %"),
             tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice", "Indice %"]
-            ).properties(
-                width=600,
-                height=400,
-                title="Heatmap - Indice de sentiment par attribut et produit"
-            )
-            text = alt.Chart(df_sentiments).mark_text(baseline="middle", fontSize=10, color="black").encode(
-                x=alt.X("Attribut:N"),
-                y=alt.Y("Produit:N"),
-                text=alt.Text("Indice %:Q", format=".1f")
-            )
-            st.altair_chart(heatmap + text, use_container_width=True)
+        ).properties(
+            width=600,
+            height=400,
+            title="Heatmap - Indice de sentiment par attribut et produit"
+        )
+                        text = alt.Chart(df_sentiments).mark_text(baseline="middle", fontSize=10, color="black").encode(
+            x=alt.X("Attribut:N"),
+            y=alt.Y("Produit:N"),
+            text=alt.Text("Indice %:Q", format=".1f")
+        )
+        st.altair_chart(heatmap + text, use_container_width=True)
 
 if __name__ == "__main__":
     main()
+
 
   
