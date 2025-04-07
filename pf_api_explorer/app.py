@@ -254,7 +254,6 @@ def main():
             y=alt.Y("Produit:N"),
             text=alt.Text("Indice %:Q", format=".1f")
         )
-        )
         st.altair_chart(heatmap + text, use_container_width=True)
 
 if __name__ == "__main__":
