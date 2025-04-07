@@ -135,7 +135,6 @@ def main():
     if selected_products:
         with st.spinner("🔄 Récupération des reviews par produit..."):
             product_rows = []
-        product_rows = []
         for entry in selected_products:
             b = entry["brand"]
             p = entry["product"]
@@ -150,7 +149,6 @@ def main():
     if attributes and selected_products:
         with st.spinner("🔄 Analyse des sentiments par attribut..."):
             sentiment_rows = []
-        sentiment_rows = []
         for entry in selected_products:
             b = entry["brand"]
             p = entry["product"]
