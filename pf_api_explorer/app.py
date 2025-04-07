@@ -5,7 +5,7 @@ import pandas as pd
 def main():
     with st.sidebar:
         st.header("Filtres")
-        
+
         if "start_date" not in st.session_state:
             st.session_state.start_date = pd.to_datetime("2022-01-01").date()
         if "end_date" not in st.session_state:
