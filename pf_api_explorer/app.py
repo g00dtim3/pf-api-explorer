@@ -216,21 +216,21 @@ def main():
     df_sentiments = pd.DataFrame(sentiments)
     st.dataframe(df_sentiments)
 
-  if not df_sentiments.empty:
+    if not df_sentiments.empty:
         df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
         heatmap = alt.Chart(df_sentiments).mark_rect().encode(
             x=alt.X("Attribut:N", title="Attribut"),
             y=alt.Y("Produit:N", title="Produit"),
             color=alt.Color("Indice:Q",
-                            scale=alt.Scale(scheme='redgreen', domainMid=0),
-                            title="Indice (Positifs - Négatifs)"),
-            tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
-        ).properties(
-            width=600,
-            height=400,
-            title="Heatmap - Indice de sentiment par attribut et produit"
-        )
-        st.altair_chart(heatmap, use_container_width=True)
+                                scale=alt.Scale(scheme='redgreen', domainMid=0),
+                                title="Indice (Positifs - Négatifs)"),
+                tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
+            ).properties(
+                width=600,
+                height=400,
+                title="Heatmap - Indice de sentiment par attribut et produit"
+            )
+            st.altair_chart(heatmap, use_container_width=True)
 
 if __name__ == "__main__":
     main()
