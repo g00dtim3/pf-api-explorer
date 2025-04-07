@@ -42,7 +42,10 @@ def main():
         products_data = fetch("/products", "&".join(product_filters))
         products = products_data.get("products", []) if products_data else []
 
-        selected_products = st.multiselect("Produits", products)
+        if len(products) == 1:
+        selected_products = [products[0]]
+    else:
+        selected_products = st.multiselect("Produits", products, default=products[:10])
 
     if not selected_products:
         st.info("Veuillez sélectionner des produits pour afficher les résultats.")
