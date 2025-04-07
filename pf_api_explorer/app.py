@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import datetime
 import io
-from functools import lru_cache
 
 st.set_page_config(page_title="Explorateur PF API", layout="wide")
 
@@ -21,13 +20,22 @@ def fetch_cached(endpoint, params=""):
         st.error(f"Erreur {response.status_code} sur {url}")
         return {}
 
+@st.cache_data(ttl=3600)
+def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
+    params = [f"brand={brand}", f"start-date={start_date}", f"end-date={end_date}"]
+    if category != "ALL":
+        params.append(f"category={category}")
+    if subcategory != "ALL":
+        params.append(f"subcategory={subcategory}")
+    return fetch_cached("/products", "&".join(params))
+
 # Utilisé uniquement pour requêtes non-cachables (avec refresh ou pagination)
 def fetch(endpoint, params=""):
     return fetch_cached(endpoint, params)
 
 
 def main():
-    st.title("Explorateur API Ratings & Reviews - Pierre Fabre")
+    st.title("Explorateur API Ratings & Reviews")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
@@ -123,33 +131,24 @@ def main():
 
     query_string = "&".join(params)
 
-    # Produits groupés par marque + compteur de reviews
     product_info = {}
     product_data = []
-    for b in brand:
-        product_params = [f"brand={b}", f"start-date={start_date}", f"end-date={end_date}"]
-        if category != "ALL":
-            product_params.append(f"category={category}")
-        if subcategory != "ALL":
-            product_params.append(f"subcategory={subcategory}")
-        product_query = "&".join(product_params)
-        products = fetch("/products", product_query)
-        if products and products.get("products"):
-            for p in products["products"]:
-                metric_param = f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}"
-                metric = fetch("/metrics", metric_param)
-                volume = metric.get("nbDocs", 0) if metric else 0
-                label = f"{b} > {p} ({volume})"
-                product_info[label] = p
-                product_data.append({"Marque": b, "Produit": p, "Reviews": volume})
+
+    if brand:
+        with st.spinner("Chargement des produits par marque..."):
+            for i, b in enumerate(brand):
+                st.write(f"🔎 {i+1}/{len(brand)} : {b}")
+                products = fetch_products_by_brand(b, category, subcategory, start_date, end_date)
+                if products and products.get("products"):
+                    for p in products["products"]:
+                        label = f"{b} > {p}"
+                        product_info[label] = p
+                        product_data.append({"Marque": b, "Produit": p})
 
     if product_data:
         st.subheader("📊 Produits disponibles")
-        df_products = pd.DataFrame(product_data).sort_values(by="Reviews", ascending=False)
+        df_products = pd.DataFrame(product_data)
         st.dataframe(df_products)
-
-        st.markdown("**Top 5 produits les plus populaires**")
-        st.table(df_products.head(5))
 
     search_text = st.text_input("🔍 Rechercher un produit")
     display_list = [k for k in product_info if search_text.lower() in k.lower()]
