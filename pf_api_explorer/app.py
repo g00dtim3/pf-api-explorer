@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import datetime
+import io
 
 st.set_page_config(page_title="Explorateur PF API", layout="wide")
 
@@ -99,6 +100,14 @@ def main():
     source = filters["source"]
     market = filters["market"]
 
+    st.markdown("## 🧾 Résumé des filtres appliqués")
+    st.markdown(f"- **Dates** : du `{start_date}` au `{end_date}`")
+    st.markdown(f"- **Catégorie** : `{category}` | **Sous-catégorie** : `{subcategory}`")
+    st.markdown(f"- **Marques** : `{', '.join(brand) if brand else 'Toutes'}`")
+    st.markdown(f"- **Pays** : `{', '.join(country) if country and 'ALL' not in country else 'Tous'}`")
+    st.markdown(f"- **Sources** : `{', '.join(source) if source and 'ALL' not in source else 'Toutes'}`")
+    st.markdown(f"- **Markets** : `{', '.join(market) if market and 'ALL' not in market else 'Tous'}`")
+
     params = [f"start-date={start_date}", f"end-date={end_date}"]
     if category != "ALL": params.append(f"category={category}")
     if subcategory != "ALL": params.append(f"subcategory={subcategory}")
@@ -167,13 +176,17 @@ def main():
             docs = result.get("docs", []) if result else []
             if docs:
                 df = pd.json_normalize(docs)
-                # Nettoyage pour éviter ArrowInvalid
                 df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
                 st.dataframe(df)
                 csv = df.to_csv(index=False)
-                excel = df.to_excel(index=False, engine='openpyxl')
+
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False)
+                excel_data = excel_buffer.getvalue()
+
                 st.download_button("📂 Télécharger en CSV", csv, file_name="reviews.csv", mime="text/csv")
-                st.download_button("📄 Télécharger en Excel", excel, file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button("📄 Télécharger en Excel", excel_data, file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
                 st.warning("Aucune review trouvée pour ces critères.")
 
