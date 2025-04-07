@@ -12,7 +12,7 @@ st.session_state.setdefault("apply_filters", False)
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
-    TOKEN = "JbK3Iyxcw2EwKQKke0rAQJ6eEHaph1ifP5smlHIemlDmGqB5l3j997pcab92ty9r"
+    TOKEN = st.secrets["api"]["token"]
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{params}"
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
