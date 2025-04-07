@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import datetime
 import io
+import altair as alt
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
