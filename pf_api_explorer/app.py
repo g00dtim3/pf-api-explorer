@@ -15,7 +15,7 @@ def fetch(endpoint, params=""):
         return {}
 
 def main():
-    st.title("Explorateur API Ratings & Reviews - Semantiweb")
+    st.title("Explorateur API Ratings & Reviews - SW")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
