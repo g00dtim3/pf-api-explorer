@@ -21,7 +21,7 @@ def fetch(endpoint, params=""):
 
 
 def main():
-    st.title("Explorateur API Ratings & Reviews - Pierre Fabre")
+    st.title("Explorateur API Ratings & Reviews")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
