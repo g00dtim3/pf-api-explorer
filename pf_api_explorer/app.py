@@ -35,6 +35,7 @@ def main():
     with st.sidebar:
         st.header("Filtres")
         if st.button("🔄 Réinitialiser les filtres"):
+            st.session_state.clear()
             st.experimental_rerun()
 
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
@@ -51,12 +52,12 @@ def main():
                     subcategory_options += cat["subcategories"]
         subcategory = st.selectbox("Sous-catégorie", subcategory_options)
 
-        brands_params = ""
+        brands_params = []
         if category != "ALL":
-            brands_params += f"category={category}"
+            brands_params.append(f"category={category}")
         if subcategory != "ALL":
-            brands_params += f"&subcategory={subcategory}" if brands_params else f"subcategory={subcategory}"
-        brands = fetch("/brands", brands_params)
+            brands_params.append(f"subcategory={subcategory}")
+        brands = fetch("/brands", "&".join(brands_params))
         brand = st.multiselect("Marques", brands.get("brands", []))
 
         countries = fetch("/countries")
@@ -71,18 +72,34 @@ def main():
         all_markets = ["ALL"] + markets.get("markets", [])
         market = st.multiselect("Markets", all_markets)
 
-        st.session_state.apply_filters = st.button("✅ Appliquer les filtres")
+        if st.button("✅ Appliquer les filtres"):
+            st.session_state.apply_filters = True
+            st.session_state.filters = {
+                "start_date": start_date,
+                "end_date": end_date,
+                "category": category,
+                "subcategory": subcategory,
+                "brand": brand,
+                "country": country,
+                "source": source,
+                "market": market
+            }
 
-    if not st.session_state.apply_filters:
+    if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
         st.info("Appliquez les filtres pour afficher les données.")
         return
 
-    # --- Construction de la requête ---
-    params_base = []
-    if start_date: params_base.append(f"start-date={start_date}")
-    if end_date: params_base.append(f"end-date={end_date}")
+    filters = st.session_state.filters
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    category = filters["category"]
+    subcategory = filters["subcategory"]
+    brand = filters["brand"]
+    country = filters["country"]
+    source = filters["source"]
+    market = filters["market"]
 
-    params = params_base.copy()
+    params = [f"start-date={start_date}", f"end-date={end_date}"]
     if category != "ALL": params.append(f"category={category}")
     if subcategory != "ALL": params.append(f"subcategory={subcategory}")
     if brand: params.append(f"brand={','.join(brand)}")
@@ -96,12 +113,11 @@ def main():
     product_info = {}
     product_data = []
     for b in brand:
-        product_params = []
+        product_params = [f"brand={b}", f"start-date={start_date}", f"end-date={end_date}"]
         if category != "ALL":
             product_params.append(f"category={category}")
         if subcategory != "ALL":
             product_params.append(f"subcategory={subcategory}")
-        product_params.append(f"brand={b}")
         product_query = "&".join(product_params)
         products = fetch("/products", product_query)
         if products and products.get("products"):
