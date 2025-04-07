@@ -21,7 +21,7 @@ def fetch(endpoint, params=""):
 
 
 def main():
-    st.title("Explorateur API Ratings & Reviews")
+    st.title("Explorateur API Ratings & Reviews - Pierre Fabre")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
@@ -165,19 +165,11 @@ def main():
             query_string += "&rows=100"
             result = fetch("/reviews", query_string)
             docs = result.get("docs", []) if result else []
-
             if docs:
-                # Normalisation et filtrage des colonnes valides
-                df = pd.json_normalize(docs)
-            
-                # Optionnel : filtrer les colonnes simples (évite ArrowInvalid)
-                allowed_types = (int, float, str, bool, type(None), datetime.date, datetime.datetime)
-                df = df[[col for col in df.columns if df[col].map(type).isin(allowed_types).all()]]
-            
+                df = pd.DataFrame(docs)
                 st.dataframe(df)
-            
                 st.download_button("📂 Télécharger en CSV", df.to_csv(index=False), file_name="reviews.csv", mime="text/csv")
-                st.download_button("📄 Télécharger en Excel", df.to_excel(index=False, engine='openpyxl'), file_name="reviews.xlsx", mime="application/vnd.openxml_
+                st.download_button("📄 Télécharger en Excel", df.to_excel(index=False, engine='openpyxl'), file_name="reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
                 st.warning("Aucune review trouvée pour ces critères.")
 
