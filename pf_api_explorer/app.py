@@ -5,20 +5,7 @@ import pandas as pd
 def main():
     with st.sidebar:
         st.header("Filtres")
-
-        if st.button("🔄 Réinitialiser les filtres"):
-            filter_keys = [
-                "start_date", "end_date", "category", "subcategory", "brand",
-                "country", "source", "market", "attributes",
-                "attributes_positive", "attributes_negative",
-                "apply_filters", "filters"
-            ]
-            for key in filter_keys:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.toast("Filtres réinitialisés")
-            st.experimental_rerun()
-
+        
         if "start_date" not in st.session_state:
             st.session_state.start_date = pd.to_datetime("2022-01-01").date()
         if "end_date" not in st.session_state:
