@@ -143,6 +143,7 @@ def main():
             product_rows.append({"Marque": b, "Produit": p, "Reviews": count})
 
 
+
     # Écran supplémentaire : répartition positif / négatif par attribut et produit
     if attributes and selected_products:
     with st.spinner("🔄 Analyse des sentiments par attribut..."):
