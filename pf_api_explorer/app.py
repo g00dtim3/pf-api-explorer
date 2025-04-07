@@ -216,18 +216,19 @@ def main():
     df_sentiments = pd.DataFrame(sentiments)
     st.dataframe(df_sentiments)
 
-    if not df_sentiments.empty:
-        df_melted = df_sentiments.melt(id_vars=["Produit", "Attribut"], value_vars=["Positifs", "Négatifs"],
-                                       var_name="Sentiment", value_name="Count")
-        heatmap = alt.Chart(df_melted).mark_rect().encode(
+  if not df_sentiments.empty:
+        df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
+        heatmap = alt.Chart(df_sentiments).mark_rect().encode(
             x=alt.X("Attribut:N", title="Attribut"),
             y=alt.Y("Produit:N", title="Produit"),
-            color=alt.Color("Count:Q", scale=alt.Scale(scheme='redblue'), title="# Reviews"),
-            tooltip=["Produit", "Attribut", "Sentiment", "Count"]
+            color=alt.Color("Indice:Q",
+                            scale=alt.Scale(scheme='redgreen', domainMid=0),
+                            title="Indice (Positifs - Négatifs)"),
+            tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
         ).properties(
             width=600,
             height=400,
-            title="Heatmap Sentiments par Attribut et Produit"
+            title="Heatmap - Indice de sentiment par attribut et produit"
         )
         st.altair_chart(heatmap, use_container_width=True)
 
