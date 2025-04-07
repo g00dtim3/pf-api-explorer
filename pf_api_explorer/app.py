@@ -29,6 +29,10 @@ def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
         params.append(f"subcategory={subcategory}")
     return fetch_cached("/products", "&".join(params))
 
+@st.cache_data(ttl=3600)
+def fetch_attributes():
+    return fetch_cached("/attributes")
+
 # Utilisé uniquement pour requêtes non-cachables (avec refresh ou pagination)
 def fetch(endpoint, params=""):
     return fetch_cached(endpoint, params)
@@ -86,6 +90,11 @@ def main():
         all_markets = ["ALL"] + markets.get("markets", [])
         market = st.multiselect("Markets", all_markets)
 
+        attribute_options = fetch_attributes().get("attributes", [])
+        attributes = st.multiselect("Attributs", attribute_options)
+        attributes_positive = st.multiselect("Attributs positifs", attribute_options)
+        attributes_negative = st.multiselect("Attributs négatifs", attribute_options)
+
         if st.button("✅ Appliquer les filtres"):
             st.session_state.apply_filters = True
             st.session_state.filters = {
@@ -96,7 +105,10 @@ def main():
                 "brand": brand,
                 "country": country,
                 "source": source,
-                "market": market
+                "market": market,
+                "attributes": attributes,
+                "attributes_positive": attributes_positive,
+                "attributes_negative": attributes_negative
             }
 
     if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
@@ -112,6 +124,9 @@ def main():
     country = filters["country"]
     source = filters["source"]
     market = filters["market"]
+    attributes = filters["attributes"]
+    attributes_positive = filters["attributes_positive"]
+    attributes_negative = filters["attributes_negative"]
 
     st.markdown("## 🧾 Résumé des filtres appliqués")
     st.markdown(f"- **Dates** : du `{start_date}` au `{end_date}`")
@@ -120,6 +135,9 @@ def main():
     st.markdown(f"- **Pays** : `{', '.join(country) if country and 'ALL' not in country else 'Tous'}`")
     st.markdown(f"- **Sources** : `{', '.join(source) if source and 'ALL' not in source else 'Toutes'}`")
     st.markdown(f"- **Markets** : `{', '.join(market) if market and 'ALL' not in market else 'Tous'}`")
+    st.markdown(f"- **Attributs** : `{', '.join(attributes)}`")
+    st.markdown(f"- **Attributs positifs** : `{', '.join(attributes_positive)}`")
+    st.markdown(f"- **Attributs négatifs** : `{', '.join(attributes_negative)}`")
 
     params = [f"start-date={start_date}", f"end-date={end_date}"]
     if category != "ALL": params.append(f"category={category}")
@@ -128,6 +146,9 @@ def main():
     if country and "ALL" not in country: params.append(f"country={','.join(country)}")
     if source and "ALL" not in source: params.append(f"source={','.join(source)}")
     if market and "ALL" not in market: params.append(f"market={','.join(market)}")
+    if attributes: params.append(f"attribute={','.join(attributes)}")
+    if attributes_positive: params.append(f"attribute-positive={','.join(attributes_positive)}")
+    if attributes_negative: params.append(f"attribute-negative={','.join(attributes_negative)}")
 
     query_string = "&".join(params)
 
