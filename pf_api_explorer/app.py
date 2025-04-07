@@ -3,6 +3,11 @@ import requests
 import pandas as pd
 import datetime
 
+st.set_page_config(page_title="Explorateur PF API", layout="wide")
+
+st.session_state.setdefault("apply_filters", False)
+
+
 def fetch(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = "JbK3Iyxcw2EwKQKke0rAQJ6eEHaph1ifP5smlHIemlDmGqB5l3j997pcab92ty9r"
@@ -14,8 +19,9 @@ def fetch(endpoint, params=""):
         st.error(f"Erreur {response.status_code} sur {url}")
         return {}
 
+
 def main():
-    st.title("Explorateur API Ratings & Reviews - SW")
+    st.title("Explorateur API Ratings & Reviews - Pierre Fabre")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
@@ -26,37 +32,65 @@ def main():
             st.metric("Quota total", result['quota'])
             st.metric("Valable jusqu'au", result['end date'])
 
-    if st.sidebar.button("🔄 Réinitialiser les filtres"):
-        st.experimental_rerun()
+    with st.sidebar:
+        st.header("Filtres")
+        if st.button("🔄 Réinitialiser les filtres"):
+            st.experimental_rerun()
+
+        start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
+        end_date = st.date_input("Date de fin", value=datetime.date.today())
+
+        categories = fetch("/categories")
+        all_categories = ["ALL"] + [c["category"] for c in categories.get("categories", [])]
+        category = st.selectbox("Catégorie", all_categories)
+
+        subcategory_options = ["ALL"]
+        if category != "ALL":
+            for cat in categories.get("categories", []):
+                if cat["category"] == category:
+                    subcategory_options += cat["subcategories"]
+        subcategory = st.selectbox("Sous-catégorie", subcategory_options)
+
+        brands_params = ""
+        if category != "ALL":
+            brands_params += f"category={category}"
+        if subcategory != "ALL":
+            brands_params += f"&subcategory={subcategory}" if brands_params else f"subcategory={subcategory}"
+        brands = fetch("/brands", brands_params)
+        brand = st.multiselect("Marques", brands.get("brands", []))
+
+        countries = fetch("/countries")
+        all_countries = ["ALL"] + countries.get("countries", [])
+        country = st.multiselect("Pays", all_countries)
+
+        sources = fetch("/sources", f"country={country[0]}" if country and country[0] != "ALL" else "")
+        all_sources = ["ALL"] + sources.get("sources", [])
+        source = st.multiselect("Sources", all_sources)
+
+        markets = fetch("/markets")
+        all_markets = ["ALL"] + markets.get("markets", [])
+        market = st.multiselect("Markets", all_markets)
+
+        st.session_state.apply_filters = st.button("✅ Appliquer les filtres")
+
+    if not st.session_state.apply_filters:
+        st.info("Appliquez les filtres pour afficher les données.")
         return
 
-    st.sidebar.header("Filtres")
-    start_date = st.sidebar.date_input("Date de début", value=datetime.date(2022, 1, 1))
-    end_date = st.sidebar.date_input("Date de fin", value=datetime.date.today())
-
+    # --- Construction de la requête ---
     params_base = []
     if start_date: params_base.append(f"start-date={start_date}")
     if end_date: params_base.append(f"end-date={end_date}")
-    query_base = "&".join(params_base)
 
-    categories = fetch("/categories")
-    all_categories = ["ALL"] + [c["category"] for c in categories.get("categories", [])]
-    category = st.sidebar.selectbox("Catégorie", all_categories)
+    params = params_base.copy()
+    if category != "ALL": params.append(f"category={category}")
+    if subcategory != "ALL": params.append(f"subcategory={subcategory}")
+    if brand: params.append(f"brand={','.join(brand)}")
+    if country and "ALL" not in country: params.append(f"country={','.join(country)}")
+    if source and "ALL" not in source: params.append(f"source={','.join(source)}")
+    if market and "ALL" not in market: params.append(f"market={','.join(market)}")
 
-    subcategory_options = ["ALL"]
-    if category != "ALL":
-        for cat in categories.get("categories", []):
-            if cat["category"] == category:
-                subcategory_options += cat["subcategories"]
-    subcategory = st.sidebar.selectbox("Sous-catégorie", subcategory_options)
-
-    brands_params = ""
-    if category != "ALL":
-        brands_params += f"category={category}"
-    if subcategory != "ALL":
-        brands_params += f"&subcategory={subcategory}" if brands_params else f"subcategory={subcategory}"
-    brands = fetch("/brands", brands_params)
-    brand = st.sidebar.multiselect("Marques", brands.get("brands", []))
+    query_string = "&".join(params)
 
     # Produits groupés par marque + compteur de reviews
     product_info = {}
@@ -79,7 +113,6 @@ def main():
                 product_info[label] = p
                 product_data.append({"Marque": b, "Produit": p, "Reviews": volume})
 
-    # Affichage immédiat du tableau des produits par marque
     if product_data:
         st.subheader("📊 Produits disponibles")
         df_products = pd.DataFrame(product_data).sort_values(by="Reviews", ascending=False)
@@ -88,38 +121,23 @@ def main():
         st.markdown("**Top 5 produits les plus populaires**")
         st.table(df_products.head(5))
 
-    search_text = st.sidebar.text_input("🔍 Rechercher un produit")
+    search_text = st.text_input("🔍 Rechercher un produit")
     display_list = [k for k in product_info if search_text.lower() in k.lower()]
-    selected_display = st.sidebar.multiselect("Produits", display_list)
+    selected_display = st.multiselect("Produits", display_list)
     selected_products = [product_info[label] for label in selected_display]
 
-    countries = fetch("/countries")
-    country = st.sidebar.multiselect("Pays", countries.get("countries", []))
-
-    sources = fetch("/sources", f"country={country[0]}" if country else "")
-    source = st.sidebar.multiselect("Sources", sources.get("sources", []))
-
-    markets = fetch("/markets")
-    market = st.sidebar.multiselect("Markets", markets.get("markets", []))
-
-    params = params_base.copy()
-    if category != "ALL": params.append(f"category={category}")
-    if subcategory != "ALL": params.append(f"subcategory={subcategory}")
-    if brand: params.append(f"brand={','.join(brand)}")
-    if selected_products: params.append(f"product={','.join(selected_products)}")
-    if country: params.append(f"country={','.join(country)}")
-    if source: params.append(f"source={','.join(source)}")
-    if market: params.append(f"market={','.join(market)}")
+    if selected_products:
+        params.append(f"product={','.join(selected_products)}")
 
     query_string = "&".join(params)
 
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Disponibilité des données")
+    st.markdown("---")
+    st.subheader("Disponibilité des données")
     dynamic_metrics = fetch("/metrics", query_string)
     if dynamic_metrics and dynamic_metrics.get("nbDocs"):
-        st.sidebar.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+        st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
     else:
-        st.sidebar.warning("Aucune review disponible pour cette combinaison")
+        st.warning("Aucune review disponible pour cette combinaison")
 
     mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
 
