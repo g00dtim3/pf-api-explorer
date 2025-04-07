@@ -120,8 +120,8 @@ def main():
             }
 
         if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
-            st.info("Appliquez les filtres pour afficher les données.")
-            return
+        st.info("Appliquez les filtres pour afficher les données.")
+        return
 
     filters = st.session_state.filters
     start_date = filters["start_date"]
@@ -170,7 +170,5 @@ def main():
             metric_rows.append({"Attribut": attr, "Reviews": count})
         df_metrics = pd.DataFrame(metric_rows)
         st.dataframe(df_metrics)
-        csv = df_metrics.to_csv(index=False)
-        st.download_button("📥 Télécharger les métriques (CSV)", csv, file_name="metrics_par_attribut.csv", mime="text/csv")
 
     st.success("Filtrage appliqué. Ajoute une section d'affichage ou d'export ici si besoin.")
