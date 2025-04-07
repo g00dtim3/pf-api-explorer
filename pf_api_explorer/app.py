@@ -59,11 +59,7 @@ def main():
 
     with st.sidebar:
         st.header("Filtres")
-        if st.button("🔄 Réinitialiser les filtres"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.experimental_rerun()
-
+       
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
         end_date = st.date_input("Date de fin", value=datetime.date.today())
 
