@@ -225,12 +225,12 @@ def main():
                                 scale=alt.Scale(scheme='redgreen', domainMid=0),
                                 title="Indice (Positifs - Négatifs)"),
                 tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice"]
-            ).properties(
+        ).properties(
                 width=600,
                 height=400,
                 title="Heatmap - Indice de sentiment par attribut et produit"
-            )
-            st.altair_chart(heatmap, use_container_width=True)
+        )
+        st.altair_chart(heatmap, use_container_width=True)
 
 if __name__ == "__main__":
     main()
