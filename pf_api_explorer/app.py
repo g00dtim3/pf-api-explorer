@@ -40,16 +40,21 @@ def main():
     query_base = "&".join(params_base)
 
     categories = fetch("/categories")
-    all_categories = [c["category"] for c in categories.get("categories", [])]
+    all_categories = ["ALL"] + [c["category"] for c in categories.get("categories", [])]
     category = st.sidebar.selectbox("Catégorie", all_categories)
 
-    subcategory_options = []
-    for cat in categories.get("categories", []):
-        if cat["category"] == category:
-            subcategory_options = cat["subcategories"]
+    subcategory_options = ["ALL"]
+    if category != "ALL":
+        for cat in categories.get("categories", []):
+            if cat["category"] == category:
+                subcategory_options += cat["subcategories"]
     subcategory = st.sidebar.selectbox("Sous-catégorie", subcategory_options)
 
-    brands_params = f"category={category}&subcategory={subcategory}"
+    brands_params = ""
+    if category != "ALL":
+        brands_params += f"category={category}"
+    if subcategory != "ALL":
+        brands_params += f"&subcategory={subcategory}" if brands_params else f"subcategory={subcategory}"
     brands = fetch("/brands", brands_params)
     brand = st.sidebar.multiselect("Marques", brands.get("brands", []))
 
@@ -57,8 +62,14 @@ def main():
     product_info = {}
     product_data = []
     for b in brand:
-        product_params = f"category={category}&subcategory={subcategory}&brand={b}"
-        products = fetch("/products", product_params)
+        product_params = []
+        if category != "ALL":
+            product_params.append(f"category={category}")
+        if subcategory != "ALL":
+            product_params.append(f"subcategory={subcategory}")
+        product_params.append(f"brand={b}")
+        product_query = "&".join(product_params)
+        products = fetch("/products", product_query)
         if products and products.get("products"):
             for p in products["products"]:
                 metric_param = f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}"
@@ -92,8 +103,8 @@ def main():
     market = st.sidebar.multiselect("Markets", markets.get("markets", []))
 
     params = params_base.copy()
-    if category: params.append(f"category={category}")
-    if subcategory: params.append(f"subcategory={subcategory}")
+    if category != "ALL": params.append(f"category={category}")
+    if subcategory != "ALL": params.append(f"subcategory={subcategory}")
     if brand: params.append(f"brand={','.join(brand)}")
     if selected_products: params.append(f"product={','.join(selected_products)}")
     if country: params.append(f"country={','.join(country)}")
