@@ -119,7 +119,7 @@ def main():
                 "attributes_negative": attributes_negative
             }
 
-        if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
+    if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
         st.info("Appliquez les filtres pour afficher les données.")
         return
 
