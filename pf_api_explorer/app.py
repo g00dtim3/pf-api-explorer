@@ -213,10 +213,26 @@ def main():
                 "Négatifs": neg.get("nbDocs", 0) if neg else 0
             })
 
-    df_sentiments = pd.DataFrame(sentiments)
+        df_sentiments = pd.DataFrame(sentiments)
     df_sentiments["Total"] = df_sentiments["Positifs"] + df_sentiments["Négatifs"]
     df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
-    df_sentiments["Indice %"] = df_sentiments.apply(lambda row: (row["Indice"] / row["Total"] * 100) if row["Total"] > 0 else 0, axis=1)
+    df_reviews_dict = dict(zip(df_reviews["Produit"], df_reviews["Reviews"]))
+    df_sentiments["% Positifs"] = df_sentiments.apply(
+      lambda row: (row["Positifs"] / df_reviews_dict.get(row["Produit"], 1) * 100)
+      if df_reviews_dict.get(row["Produit"], 0) > 0 else 0,
+      axis=1
+    )
+    df_sentiments["% Négatifs"] = df_sentiments.apply(
+      lambda row: (row["Négatifs"] / df_reviews_dict.get(row["Produit"], 1) * 100)
+      if df_reviews_dict.get(row["Produit"], 0) > 0 else 0,
+      axis=1
+    )
+    df_sentiments["Indice %"] = df_sentiments.apply(
+      lambda row: ((row["Indice"] / df_reviews_dict.get(row["Produit"], 1)) * 100)
+      if df_reviews_dict.get(row["Produit"], 0) > 0 else 0,
+      axis=1
+    )
+
     st.dataframe(df_sentiments)
 
     if not df_sentiments.empty:
