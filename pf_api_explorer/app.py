@@ -132,36 +132,36 @@ def main():
 
     # Écran supplémentaire : nombre de reviews par produit
     st.subheader("📊 Nombre de reviews par produit")
-    if brand:
+    if selected_products:
+        with st.spinner("🔄 Récupération des reviews par produit..."):
         product_rows = []
-        for b in brand:
-            product_list = fetch("/products", f"brand={b}&start-date={start_date}&end-date={end_date}")
-            if product_list and "products" in product_list:
-                for p in product_list["products"]:
-                    metric = fetch("/metrics", f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}")
-                    count = metric.get("nbDocs", 0) if metric else 0
-                    product_rows.append({"Marque": b, "Produit": p, "Reviews": count})
+        for entry in selected_products:
+            b = entry["brand"]
+            p = entry["product"]
+            metric = fetch("/metrics", f"brand={b}&product={p}&start-date={start_date}&end-date={end_date}")
+            count = metric.get("nbDocs", 0) if metric else 0
+            product_rows.append({"Marque": b, "Produit": p, "Reviews": count})
         df_products = pd.DataFrame(product_rows)
         st.dataframe(df_products)
 
     # Écran supplémentaire : répartition positif / négatif par attribut et produit
     st.subheader("📊 Répartition Positif / Négatif par Attribut et Produit")
-    if attributes and brand:
+    if attributes and selected_products:
+        with st.spinner("🔄 Analyse des sentiments par attribut..."):
         sentiment_rows = []
-        for b in brand:
-            product_list = fetch("/products", f"brand={b}&start-date={start_date}&end-date={end_date}")
-            if product_list and "products" in product_list:
-                for p in product_list["products"]:
-                    for attr in attributes:
-                        pos = fetch("/metrics", f"brand={b}&product={p}&attribute-positive={attr}&start-date={start_date}&end-date={end_date}")
-                        neg = fetch("/metrics", f"brand={b}&product={p}&attribute-negative={attr}&start-date={start_date}&end-date={end_date}")
-                        sentiment_rows.append({
-                            "Marque": b,
-                            "Produit": p,
-                            "Attribut": attr,
-                            "Positifs": pos.get("nbDocs", 0) if pos else 0,
-                            "Négatifs": neg.get("nbDocs", 0) if neg else 0
-                        })
+        for entry in selected_products:
+            b = entry["brand"]
+            p = entry["product"]
+            for attr in attributes:
+                pos = fetch("/metrics", f"brand={b}&product={p}&attribute-positive={attr}&start-date={start_date}&end-date={end_date}")
+                neg = fetch("/metrics", f"brand={b}&product={p}&attribute-negative={attr}&start-date={start_date}&end-date={end_date}")
+                sentiment_rows.append({
+                    "Marque": b,
+                    "Produit": p,
+                    "Attribut": attr,
+                    "Positifs": pos.get("nbDocs", 0) if pos else 0,
+                    "Négatifs": neg.get("nbDocs", 0) if neg else 0
+                })
         df_sentiments = pd.DataFrame(sentiment_rows)
         st.dataframe(df_sentiments)
         csv_sent = df_sentiments.to_csv(index=False)
@@ -183,6 +183,7 @@ def main():
             )
             st.altair_chart(heatmap, use_container_width=True)
 
+@st.cache_data(ttl=3600)
 def fetch(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = "JbK3Iyxcw2EwKQKke0rAQJ6eEHaph1ifP5smlHIemlDmGqB5l3j997pcab92ty9r"
