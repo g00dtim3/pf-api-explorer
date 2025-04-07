@@ -235,21 +235,26 @@ def main():
 
     st.dataframe(df_sentiments)
 
-    if not df_sentiments.empty:
-        df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
-        heatmap = alt.Chart(df_sentiments).mark_rect().encode(
-            x=alt.X("Attribut:N", title="Attribut"),
-            y=alt.Y("Produit:N", title="Produit"),
-            color=alt.Color("Indice %:Q",
-                            scale=alt.Scale(scheme='redblue', domainMid=0),
-                            title="Indice (%) - Sentiment net en %"),
-            tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice", "Indice %"]
-        ).properties(
-            width=600,
-            height=400,
-            title="Heatmap - Indice de sentiment par attribut et produit"
-        )
-        st.altair_chart(heatmap, use_container_width=True)
+     if not df_sentiments.empty:
+            df_sentiments["Indice"] = df_sentiments["Positifs"] - df_sentiments["Négatifs"]
+            heatmap = alt.Chart(df_sentiments).mark_rect().encode(
+                x=alt.X("Attribut:N", title="Attribut"),
+                y=alt.Y("Produit:N", title="Produit"),
+                color=alt.Color("Indice %:Q",
+                                scale=alt.Scale(scheme='redblue', domainMid=0),
+                                title="Indice (%) - Sentiment net en %"),
+                tooltip=["Produit", "Attribut", "Positifs", "Négatifs", "Indice", "Indice %"]
+            ).properties(
+                width=600,
+                height=400,
+                title="Heatmap - Indice de sentiment par attribut et produit"
+            )
+                    text = alt.Chart(df_sentiments).mark_text(baseline="middle", fontSize=10, color="black").encode(
+                x=alt.X("Attribut:N"),
+                y=alt.Y("Produit:N"),
+                text=alt.Text("Indice %:Q", format=".1f")
+            )
+            st.altair_chart(heatmap + text, use_container_width=True)
 
 if __name__ == "__main__":
     main()
