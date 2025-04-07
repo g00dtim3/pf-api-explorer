@@ -3,13 +3,14 @@ import requests
 import pandas as pd
 import datetime
 import io
+from functools import lru_cache
 
 st.set_page_config(page_title="Explorateur PF API", layout="wide")
 
 st.session_state.setdefault("apply_filters", False)
 
-
-def fetch(endpoint, params=""):
+@st.cache_data(ttl=3600)
+def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = "JbK3Iyxcw2EwKQKke0rAQJ6eEHaph1ifP5smlHIemlDmGqB5l3j997pcab92ty9r"
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{params}"
@@ -19,6 +20,10 @@ def fetch(endpoint, params=""):
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
         return {}
+
+# Utilisé uniquement pour requêtes non-cachables (avec refresh ou pagination)
+def fetch(endpoint, params=""):
+    return fetch_cached(endpoint, params)
 
 
 def main():
