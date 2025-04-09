@@ -4,92 +4,37 @@ import pandas as pd
 import datetime
 import io
 import altair as alt
+import urllib.parse
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
-
-# 🔧 Mode debug
-#show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
 
 st.session_state.setdefault("apply_filters", False)
 
 @st.cache_data(ttl=3600)
-def fetch_cached(endpoint, params=""):
-    import urllib.parse
+def fetch_cached(endpoint, params=None):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
-    
-    # Définir show_debug pour éviter l'erreur
-    show_debug = True  # ou utilisez une variable globale comme vous préférez
-    
-    # On va parser manuellement les paires clé-valeur en tenant compte 
-    # des caractères & dans les valeurs
-    param_dict = {}
-    
-    if params:
-        # Position de départ
-        pos = 0
-        
-        while pos < len(params):
-            # Trouver le prochain =
-            eq_pos = params.find('=', pos)
-            if eq_pos == -1:
-                break  # Pas d'autre paramètre
-                
-            # Extraire la clé
-            key = params[pos:eq_pos].strip()
-            
-            # Trouver où commence le prochain paramètre
-            # Cela signifie chercher le prochain & suivi d'un = après un certain nombre de caractères
-            next_param_start = eq_pos + 1
-            looking_for_next = True
-            
-            while looking_for_next and next_param_start < len(params):
-                # Trouver le prochain &
-                next_amp = params.find('&', next_param_start)
-                
-                if next_amp == -1:
-                    # Plus d'autres &, prendre jusqu'à la fin
-                    value = params[eq_pos+1:].strip()
-                    param_dict[key] = value
-                    pos = len(params)  # Terminer la boucle
-                    looking_for_next = False
-                else:
-                    # Vérifier si ce & est un séparateur de paramètre
-                    # Il l'est s'il y a un = après lui dans une distance raisonnable
-                    potential_next_eq = params.find('=', next_amp, next_amp+20)
-                    
-                    if potential_next_eq != -1:
-                        # C'est un séparateur de paramètre
-                        value = params[eq_pos+1:next_amp].strip()
-                        param_dict[key] = value
-                        pos = next_amp + 1  # Avancer au prochain paramètre
-                        looking_for_next = False
-                    else:
-                        # Ce & fait partie de la valeur, continuer à chercher
-                        next_param_start = next_amp + 1
-            
-            # Si on est sortis de la boucle sans trouver de séparateur
-            if looking_for_next:
-                value = params[eq_pos+1:].strip()
-                param_dict[key] = value
-                pos = len(params)  # Terminer la boucle
-    
-    # Construire l'URL finale avec chaque valeur correctement encodée
-    query_params = []
-    for key, value in param_dict.items():
-        encoded_value = urllib.parse.quote(value, safe='')
-        query_params.append(f"{key}={encoded_value}")
-    
-    # Ajouter le token
-    query_params.append(f"token={TOKEN}")
-    
-    # Assembler l'URL
-    url = f"{BASE_URL}{endpoint}?{'&'.join(query_params)}"
-    
+    show_debug = True
+
+    if params is None:
+        params = {}
+    elif isinstance(params, str):
+        st.error("❌ ERREUR: `params` doit être un dict ou une liste de tuples, pas une chaîne.")
+        return {}
+
+    if isinstance(params, dict):
+        params["token"] = TOKEN
+        query_string = urllib.parse.urlencode(params, doseq=True)
+    else:
+        params.append(("token", TOKEN))
+        query_string = urllib.parse.urlencode(params, doseq=True)
+
+    url = f"{BASE_URL}{endpoint}?{query_string}"
+
     if show_debug:
         st.write("🔎 URL générée:", url)
-        st.write("Paramètres analysés:", param_dict)
-    
+        st.write("Paramètres analysés:", params)
+
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
@@ -100,35 +45,37 @@ def fetch_cached(endpoint, params=""):
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
-    params = [f"brand={brand}", f"start-date={start_date}", f"end-date={end_date}"]
+    params = {
+        "brand": brand,
+        "start-date": start_date,
+        "end-date": end_date
+    }
     if category != "ALL":
-        params.append(f"category={category}")
+        params["category"] = category
     if subcategory != "ALL":
-        params.append(f"subcategory={subcategory}")
-    return fetch_cached("/products", "&".join(params))
+        params["subcategory"] = subcategory
+    return fetch_cached("/products", params)
 
 @st.cache_data(ttl=3600)
 def fetch_attributes_dynamic(category, subcategory, brand):
-    filters = []
+    params = {}
     if category != "ALL":
-        filters.append(f"category={category}")
+        params["category"] = category
     if subcategory != "ALL":
-        filters.append(f"subcategory={subcategory}")
+        params["subcategory"] = subcategory
     if brand:
-        filters.append(f"brand={','.join(brand)}")
-    return fetch_cached("/attributes", "&".join(filters))
+        params["brand"] = ",".join(brand)
+    return fetch_cached("/attributes", params)
 
-# Utilisé uniquement pour requêtes non-cachables (avec refresh ou pagination)
-def fetch(endpoint, params=""):
+def fetch(endpoint, params=None):
     return fetch_cached(endpoint, params)
-
 
 def main():
     st.title("Explorateur API Ratings & Reviews")
 
     st.subheader("Quotas")
     if st.button("Afficher mes quotas"):
-        result = fetch("/quotas", "")
+        result = fetch("/quotas")
         if result:
             st.metric("Volume utilisé", result['used volume'])
             st.metric("Volume restant", result['remaining volume'])
@@ -137,7 +84,7 @@ def main():
 
     with st.sidebar:
         st.header("Filtres")
-       
+
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
         end_date = st.date_input("Date de fin", value=datetime.date.today())
 
@@ -152,19 +99,22 @@ def main():
                     subcategory_options += cat["subcategories"]
         subcategory = st.selectbox("Sous-catégorie", subcategory_options)
 
-        brands_params = []
+        brands_params = {}
         if category != "ALL":
-            brands_params.append(f"category={category}")
+            brands_params["category"] = category
         if subcategory != "ALL":
-            brands_params.append(f"subcategory={subcategory}")
-        brands = fetch("/brands", "&".join(brands_params))
+            brands_params["subcategory"] = subcategory
+        brands = fetch("/brands", brands_params)
         brand = st.multiselect("Marques", brands.get("brands", []))
 
         countries = fetch("/countries")
         all_countries = ["ALL"] + countries.get("countries", [])
         country = st.multiselect("Pays", all_countries)
 
-        sources = fetch("/sources", f"country={country[0]}" if country and country[0] != "ALL" else "")
+        source_params = {}
+        if country and country[0] != "ALL":
+            source_params["country"] = country[0]
+        sources = fetch("/sources", source_params)
         all_sources = ["ALL"] + sources.get("sources", [])
         source = st.multiselect("Sources", all_sources)
 
@@ -199,50 +149,39 @@ def main():
         return
 
     filters = st.session_state.filters
-    start_date = filters["start_date"]
-    end_date = filters["end_date"]
-    category = filters["category"]
-    subcategory = filters["subcategory"]
-    brand = filters["brand"]
-    country = filters["country"]
-    source = filters["source"]
-    market = filters["market"]
-    attributes = filters["attributes"]
-    attributes_positive = filters["attributes_positive"]
-    attributes_negative = filters["attributes_negative"]
+    params = {
+        "start-date": filters["start_date"],
+        "end-date": filters["end_date"]
+    }
+    if filters["category"] != "ALL": params["category"] = filters["category"]
+    if filters["subcategory"] != "ALL": params["subcategory"] = filters["subcategory"]
+    if filters["brand"]: params["brand"] = ",".join(filters["brand"])
+    if filters["country"] and "ALL" not in filters["country"]: params["country"] = ",".join(filters["country"])
+    if filters["source"] and "ALL" not in filters["source"]: params["source"] = ",".join(filters["source"])
+    if filters["market"] and "ALL" not in filters["market"]: params["market"] = ",".join(filters["market"])
+    if filters["attributes"]: params["attribute"] = ",".join(filters["attributes"])
+    if filters["attributes_positive"]: params["attribute-positive"] = ",".join(filters["attributes_positive"])
+    if filters["attributes_negative"]: params["attribute-negative"] = ",".join(filters["attributes_negative"])
 
     st.markdown("## 🧾 Résumé des filtres appliqués")
-    st.markdown(f"- **Dates** : du `{start_date}` au `{end_date}`")
-    st.markdown(f"- **Catégorie** : `{category}` | **Sous-catégorie** : `{subcategory}`")
-    st.markdown(f"- **Marques** : `{', '.join(brand) if brand else 'Toutes'}`")
-    st.markdown(f"- **Pays** : `{', '.join(country) if country and 'ALL' not in country else 'Tous'}`")
-    st.markdown(f"- **Sources** : `{', '.join(source) if source and 'ALL' not in source else 'Toutes'}`")
-    st.markdown(f"- **Markets** : `{', '.join(market) if market and 'ALL' not in market else 'Tous'}`")
-    st.markdown(f"- **Attributs** : `{', '.join(attributes)}`")
-    st.markdown(f"- **Attributs positifs** : `{', '.join(attributes_positive)}`")
-    st.markdown(f"- **Attributs négatifs** : `{', '.join(attributes_negative)}`")
-
-    params = [f"start-date={start_date}", f"end-date={end_date}"]
-    if category != "ALL": params.append(f"category={category}")
-    if subcategory != "ALL": params.append(f"subcategory={subcategory}")
-    if brand: params.append(f"brand={','.join(brand)}")
-    if country and "ALL" not in country: params.append(f"country={','.join(country)}")
-    if source and "ALL" not in source: params.append(f"source={','.join(source)}")
-    if market and "ALL" not in market: params.append(f"market={','.join(market)}")
-    if attributes: params.append(f"attribute={','.join(attributes)}")
-    if attributes_positive: params.append(f"attribute-positive={','.join(attributes_positive)}")
-    if attributes_negative: params.append(f"attribute-negative={','.join(attributes_negative)}")
-
-    query_string = "&".join(params)
+    st.markdown(f"- **Dates** : du `{filters['start_date']}` au `{filters['end_date']}`")
+    st.markdown(f"- **Catégorie** : `{filters['category']}` | **Sous-catégorie** : `{filters['subcategory']}`")
+    st.markdown(f"- **Marques** : `{', '.join(filters['brand']) if filters['brand'] else 'Toutes'}`")
+    st.markdown(f"- **Pays** : `{', '.join(filters['country']) if filters['country'] and 'ALL' not in filters['country'] else 'Tous'}`")
+    st.markdown(f"- **Sources** : `{', '.join(filters['source']) if filters['source'] and 'ALL' not in filters['source'] else 'Toutes'}`")
+    st.markdown(f"- **Markets** : `{', '.join(filters['market']) if filters['market'] and 'ALL' not in filters['market'] else 'Tous'}`")
+    st.markdown(f"- **Attributs** : `{', '.join(filters['attributes'])}`")
+    st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
+    st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
     product_info = {}
     product_data = []
 
-    if brand:
+    if filters["brand"]:
         with st.spinner("Chargement des produits par marque..."):
-            for i, b in enumerate(brand):
-                st.write(f"🔎 {i+1}/{len(brand)} : {b}")
-                products = fetch_products_by_brand(b, category, subcategory, start_date, end_date)
+            for i, b in enumerate(filters["brand"]):
+                st.write(f"🔎 {i+1}/{len(filters['brand'])} : {b}")
+                products = fetch_products_by_brand(b, filters["category"], filters["subcategory"], filters["start_date"], filters["end_date"])
                 if products and products.get("products"):
                     for p in products["products"]:
                         label = f"{b} > {p}"
@@ -260,13 +199,11 @@ def main():
     selected_products = [product_info[label] for label in selected_display]
 
     if selected_products:
-        params.append(f"product={','.join(selected_products)}")
-
-    query_string = "&".join(params)
+        params["product"] = ",".join(selected_products)
 
     st.markdown("---")
     st.subheader("Disponibilité des données")
-    dynamic_metrics = fetch("/metrics", query_string)
+    dynamic_metrics = fetch("/metrics", params)
     if dynamic_metrics and dynamic_metrics.get("nbDocs"):
         st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
     else:
@@ -276,11 +213,12 @@ def main():
 
     if st.button("Lancer la requête"):
         if mode == "Métriques (metrics)":
-            result = fetch("/metrics", query_string)
+            result = fetch("/metrics", params)
             st.json(result)
         else:
-            query_string += "&rows=100"
-            result = fetch("/reviews", query_string)
+            params_with_rows = params.copy()
+            params_with_rows["rows"] = 100
+            result = fetch("/reviews", params_with_rows)
             docs = result.get("docs", []) if result else []
             if docs:
                 df = pd.json_normalize(docs)
