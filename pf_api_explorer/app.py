@@ -8,7 +8,7 @@ import altair as alt
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
 # 🔧 Mode debug
-show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
+# 🔧show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
 
 st.session_state.setdefault("apply_filters", False)
 
@@ -19,8 +19,8 @@ def fetch_cached(endpoint, params=""):
     TOKEN = st.secrets["api"]["token"]
     encoded_params = "&".join([p.replace("&", "%26") for p in params.split("&")])
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{encoded_params}"
-    if 'show_debug' in globals() and show_debug:
-        st.write("🔎 URL générée :", url)
+  # 🔧  if 'show_debug' in globals() and show_debug:
+    st.write("🔎 URL générée :", url)
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
