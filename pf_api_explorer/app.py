@@ -17,7 +17,7 @@ def fetch_cached(endpoint, params=""):
     import urllib.parse
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
-            encoded_params = []
+    encoded_params = []
     for param in params.split("&"):
         if "=" in param:
             key, value = param.split("=", 1)
