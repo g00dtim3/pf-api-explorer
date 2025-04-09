@@ -18,44 +18,55 @@ def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Pré-encodage des valeurs qui contiennent des &
-    params_fixed = ""
-    idx = 0
-    while idx < len(params):
-        # Trouver la prochaine occurrence de =
-        eq_pos = params.find('=', idx)
+    # Solution simple: remplacer d'abord tous les & dans les valeurs par %26
+    # avant de traiter les & comme séparateurs de paramètres
+    safe_params = ""
+    i = 0
+    while i < len(params):
+        eq_pos = params.find('=', i)
         if eq_pos == -1:
-            # Plus de paires clé=valeur
+            # Pas de signe =, on ajoute le reste tel quel
+            safe_params += params[i:]
             break
         
-        # Extraire la clé
-        key = params[idx:eq_pos].strip()
+        # Ajouter la clé
+        safe_params += params[i:eq_pos+1]
         
-        # Chercher le prochain & qui n'est pas suivi d'un =
-        next_idx = eq_pos + 1
-        while next_idx < len(params):
-            amp_pos = params.find('&', next_idx)
-            if amp_pos == -1:
-                # Pas d'autre &, on va jusqu'à la fin
-                value = params[eq_pos+1:].strip()
-                params_fixed += key + "=" + urllib.parse.quote(value)
-                idx = len(params)
-                break
-            elif params.find('=', amp_pos+1, amp_pos+10) != -1:
-                # Ce & est suivi d'un =, donc c'est un séparateur de paramètres
-                value = params[eq_pos+1:amp_pos].strip()
-                params_fixed += key + "=" + urllib.parse.quote(value) + "&"
-                idx = amp_pos + 1
-                break
-            else:
-                # Ce & fait partie de la valeur
-                next_idx = amp_pos + 1
+        # Chercher le prochain & qui est un séparateur de paramètres
+        value_start = eq_pos + 1
+        next_param = params.find('&', value_start)
+        
+        if next_param == -1:
+            # Pas d'autre paramètre
+            value = params[value_start:]
+            # Encoder les & dans la valeur
+            value = value.replace('&', '%26')
+            safe_params += value
+            break
+        else:
+            value = params[value_start:next_param]
+            # Encoder les & dans la valeur
+            value = value.replace('&', '%26')
+            safe_params += value + '&'
+            i = next_param + 1
+    
+    # Analyser les paramètres sécurisés
+    param_dict = {}
+    for pair in safe_params.split('&'):
+        if '=' in pair:
+            key, value = pair.split('=', 1)
+            param_dict[key] = value
     
     # Ajouter le token
-    if params_fixed:
-        url = f"{BASE_URL}{endpoint}?token={TOKEN}&{params_fixed}"
-    else:
-        url = f"{BASE_URL}{endpoint}?token={TOKEN}"
+    param_dict['token'] = TOKEN
+    
+    # Construire l'URL finale
+    url_parts = [f"{BASE_URL}{endpoint}?"]
+    for key, value in param_dict.items():
+        encoded_value = urllib.parse.quote(value, safe='')
+        url_parts.append(f"{key}={encoded_value}&")
+    
+    url = ''.join(url_parts)[:-1]
     
     if 'show_debug' in globals() and show_debug:
         st.write("🔎 URL générée:", url)
