@@ -18,64 +18,84 @@ def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Solution simple: remplacer d'abord tous les & dans les valeurs par %26
-    # avant de traiter les & comme séparateurs de paramètres
-    safe_params = ""
-    i = 0
-    while i < len(params):
-        eq_pos = params.find('=', i)
-        if eq_pos == -1:
-            # Pas de signe =, on ajoute le reste tel quel
-            safe_params += params[i:]
-            break
-        
-        # Ajouter la clé
-        safe_params += params[i:eq_pos+1]
-        
-        # Chercher le prochain & qui est un séparateur de paramètres
-        value_start = eq_pos + 1
-        next_param = params.find('&', value_start)
-        
-        if next_param == -1:
-            # Pas d'autre paramètre
-            value = params[value_start:]
-            # Encoder les & dans la valeur
-            value = value.replace('&', '%26')
-            safe_params += value
-            break
-        else:
-            value = params[value_start:next_param]
-            # Encoder les & dans la valeur
-            value = value.replace('&', '%26')
-            safe_params += value + '&'
-            i = next_param + 1
+    # Définir show_debug pour éviter l'erreur
+    show_debug = True  # ou utilisez une variable globale comme vous préférez
     
-    # Analyser les paramètres sécurisés
+    # On va parser manuellement les paires clé-valeur en tenant compte 
+    # des caractères & dans les valeurs
     param_dict = {}
-    for pair in safe_params.split('&'):
-        if '=' in pair:
-            key, value = pair.split('=', 1)
-            param_dict[key] = value
     
-    # Ajouter le token
-    param_dict['token'] = TOKEN
+    if params:
+        # Position de départ
+        pos = 0
+        
+        while pos < len(params):
+            # Trouver le prochain =
+            eq_pos = params.find('=', pos)
+            if eq_pos == -1:
+                break  # Pas d'autre paramètre
+                
+            # Extraire la clé
+            key = params[pos:eq_pos].strip()
+            
+            # Trouver où commence le prochain paramètre
+            # Cela signifie chercher le prochain & suivi d'un = après un certain nombre de caractères
+            next_param_start = eq_pos + 1
+            looking_for_next = True
+            
+            while looking_for_next and next_param_start < len(params):
+                # Trouver le prochain &
+                next_amp = params.find('&', next_param_start)
+                
+                if next_amp == -1:
+                    # Plus d'autres &, prendre jusqu'à la fin
+                    value = params[eq_pos+1:].strip()
+                    param_dict[key] = value
+                    pos = len(params)  # Terminer la boucle
+                    looking_for_next = False
+                else:
+                    # Vérifier si ce & est un séparateur de paramètre
+                    # Il l'est s'il y a un = après lui dans une distance raisonnable
+                    potential_next_eq = params.find('=', next_amp, next_amp+20)
+                    
+                    if potential_next_eq != -1:
+                        # C'est un séparateur de paramètre
+                        value = params[eq_pos+1:next_amp].strip()
+                        param_dict[key] = value
+                        pos = next_amp + 1  # Avancer au prochain paramètre
+                        looking_for_next = False
+                    else:
+                        # Ce & fait partie de la valeur, continuer à chercher
+                        next_param_start = next_amp + 1
+            
+            # Si on est sortis de la boucle sans trouver de séparateur
+            if looking_for_next:
+                value = params[eq_pos+1:].strip()
+                param_dict[key] = value
+                pos = len(params)  # Terminer la boucle
     
-    # Construire l'URL finale
-    url_parts = [f"{BASE_URL}{endpoint}?"]
+    # Construire l'URL finale avec chaque valeur correctement encodée
+    query_params = []
     for key, value in param_dict.items():
         encoded_value = urllib.parse.quote(value, safe='')
-        url_parts.append(f"{key}={encoded_value}&")
+        query_params.append(f"{key}={encoded_value}")
     
-    url = ''.join(url_parts)[:-1]
+    # Ajouter le token
+    query_params.append(f"token={TOKEN}")
     
-    if 'show_debug' in globals() and show_debug:
+    # Assembler l'URL
+    url = f"{BASE_URL}{endpoint}?{'&'.join(query_params)}"
+    
+    if show_debug:
         st.write("🔎 URL générée:", url)
+        st.write("Paramètres analysés:", param_dict)
     
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
+        st.error(f"Réponse: {response.text}")
         return {}
 
 @st.cache_data(ttl=3600)
