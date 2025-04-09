@@ -18,40 +18,35 @@ def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Débuggons les paramètres reçus
-    st.write("Paramètres bruts reçus:", repr(params))
-    
-    # Créons un dictionnaire de paramètres à partir de la chaîne de paramètres
-    param_dict = {}
-    
+    # Remplacement simple des & avec %26 avant le premier =
     if params:
-        for pair in params.split("&"):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                st.write(f"Paire analysée - Clé: '{key}', Valeur: '{value}'")
-                param_dict[key] = value
+        parts = []
+        for pair in params.split('&'):
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                # Encoder les & dans la valeur
+                encoded_value = urllib.parse.quote(value)
+                parts.append(f"{key}={encoded_value}")
+            else:
+                parts.append(pair)
+        safe_params = '&'.join(parts)
+    else:
+        safe_params = ""
     
-    # Ajoutons le token
-    param_dict["token"] = TOKEN
+    # Construire l'URL finale
+    if safe_params:
+        url = f"{BASE_URL}{endpoint}?token={TOKEN}&{safe_params}"
+    else:
+        url = f"{BASE_URL}{endpoint}?token={TOKEN}"
     
-    # Construisons l'URL manuellement avec encodage paramètre par paramètre
-    url_parts = [f"{BASE_URL}{endpoint}?"]
-    for key, value in param_dict.items():
-        # Encodage complet de la valeur
-        encoded_value = urllib.parse.quote(value, safe='')
-        url_parts.append(f"{key}={encoded_value}&")
-    
-    # Retirer le dernier & s'il existe
-    url = ''.join(url_parts)[:-1] if url_parts[-1].endswith('&') else ''.join(url_parts)
-    
-    st.write("🔎 URL générée:", url)
+    if 'show_debug' in globals() and show_debug:
+        st.write("🔎 URL générée:", url)
     
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
-        st.error(f"Réponse: {response.text}")
         return {}
 
 
