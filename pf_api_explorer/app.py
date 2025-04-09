@@ -5,11 +5,9 @@ import datetime
 import io
 import altair as alt
 import urllib.parse
+from functools import partial
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
-
-# 🔧 Mode debug
-show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
 
 st.session_state.setdefault("apply_filters", False)
 
@@ -25,12 +23,14 @@ def fetch_cached(endpoint, params=None):
         st.error("❌ ERREUR: `params` doit être un dict ou une liste de tuples, pas une chaîne.")
         return {}
 
+    quote_strict = partial(urllib.parse.quote, safe='')
+
     if isinstance(params, dict):
         params["token"] = TOKEN
-        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=lambda x, safe: urllib.parse.quote(x, safe=''))
+        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=quote_strict)
     else:
         params.append(("token", TOKEN))
-        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=lambda x, safe: urllib.parse.quote(x, safe=''))
+        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=quote_strict)
 
     url = f"{BASE_URL}{endpoint}?{query_string}"
 
