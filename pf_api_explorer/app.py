@@ -14,28 +14,32 @@ st.session_state.setdefault("apply_filters", False)
 
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
-    from urllib.parse import urlencode, parse_qsl
+    import urllib.parse
+    import re
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Conversion de la chaîne params en dictionnaire
+    # Nouvelle approche pour l'encodage des paramètres
+    # Au lieu de diviser par &, on utilise une expression régulière pour trouver les paires clé=valeur
+    final_params = []
+    
+    # Trouver toutes les paires clé=valeur en respectant le format
     if params:
-        # Séparation initiale des paires clé=valeur
-        param_pairs = {}
-        for item in params.split('&'):
-            if '=' in item:
-                key, value = item.split('=', 1)
-                param_pairs[key] = value
-    else:
-        param_pairs = {}
+        # Pattern qui capture les paires key=value
+        pattern = r'([^&=]+)=([^&]*)'
+        matches = re.findall(pattern, params)
+        
+        for key, value in matches:
+            # Encoder correctement la valeur en URL (espaces -> +, caractères spéciaux -> %xx)
+            encoded_value = urllib.parse.quote(value, safe='')
+            final_params.append(f"{key}={encoded_value}")
     
-    # Ajout du token
-    param_pairs['token'] = TOKEN
-    
-    # Construction de l'URL avec urlencode qui s'occupera de l'encodage correct
-    url = f"{BASE_URL}{endpoint}?{urlencode(param_pairs)}"
+    query_string = "&".join(final_params)
+    url = f"{BASE_URL}{endpoint}?token={TOKEN}"
+    if query_string:
+        url += f"&{query_string}"
 
-    # Mode debug
+    # Si vous avez défini la variable show_debug
     if 'show_debug' in globals() and show_debug:
         st.write("🔎 URL générée :", url)
 
