@@ -31,7 +31,7 @@ def fetch_cached(endpoint, params=""):
     query_string = "&".join(encoded_params)
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{query_string}"
 
-    if show_debug:
+    #if show_debug:
         st.write("🔎 URL générée :", url)
 
     response = requests.get(url, headers={"Accept": "application/json"})
