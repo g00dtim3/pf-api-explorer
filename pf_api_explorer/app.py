@@ -24,7 +24,7 @@ def fetch_cached(endpoint, params=None):
         return {}
 
     def quote_strict(string, safe='/', encoding=None, errors=None):
-    return urllib.parse.quote(string, safe='', encoding=encoding, errors=errors)
+        return urllib.parse.quote(string, safe='', encoding=encoding, errors=errors)
 
     if isinstance(params, dict):
         params["token"] = TOKEN
