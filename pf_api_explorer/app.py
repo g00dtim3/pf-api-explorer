@@ -3,8 +3,7 @@ import requests
 import pandas as pd
 import datetime
 import io
-import urllib.parse
-
+import altair as alt
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
@@ -12,16 +11,18 @@ st.session_state.setdefault("apply_filters", False)
 
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
+    import urllib.parse
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     encoded_params = "&".join([urllib.parse.quote_plus(p, safe="=,:") for p in params.split("&")])
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{encoded_params}"
+    st.write("🔎 URL générée :", url)
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
-        return {}
+        return {}st.secrets["api"]["token"]
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
