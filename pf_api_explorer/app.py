@@ -32,7 +32,7 @@ def fetch_cached(endpoint, params=""):
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{query_string}"
 
     #if show_debug:
-        st.write("🔎 URL générée :", url)
+    st.write("🔎 URL générée :", url)
 
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
