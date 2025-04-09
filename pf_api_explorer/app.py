@@ -15,35 +15,46 @@ st.session_state.setdefault("apply_filters", False)
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
     import urllib.parse
-    import re
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Utiliser une expression régulière pour extraire correctement les paires clé=valeur
-    # Cette regex recherche les paires key=value tout en s'assurant que les & à l'intérieur des valeurs sont ignorés
+    # Approche alternative: détecter les paires clé=valeur de manière plus intelligente
     param_dict = {}
     
-    # Ajouter le token au dictionnaire de paramètres
+    # Trouver les positions des clés et des valeurs
+    if params:
+        # Identifier où se trouvent les paires clé=valeur dans la chaîne params
+        parts = []
+        start = 0
+        key_start = 0
+        in_value = False
+        current_key = ""
+        
+        for i, char in enumerate(params):
+            if char == '=' and not in_value:
+                current_key = params[key_start:i].strip()
+                start = i + 1
+                in_value = True
+            elif char == '&' and not (i > 0 and params[i-1] == '='):
+                if in_value:
+                    param_dict[current_key] = params[start:i].strip()
+                    in_value = False
+                    key_start = i + 1
+        
+        # Ajouter la dernière valeur si elle existe
+        if in_value:
+            param_dict[current_key] = params[start:].strip()
+    
+    # Ajouter le token au dictionnaire
     param_dict["token"] = TOKEN
     
-    # Utiliser une expression régulière pour capturer les paires clé=valeur
-    if params:
-        key_value_pattern = re.compile(r'([^&=]+)=([^&]*(?:&[^=&]*)*)')
-        matches = key_value_pattern.findall(params)
-        
-        for key, value in matches:
-            # Stocker la paire clé-valeur dans le dictionnaire
-            param_dict[key] = value
-    
-    # Construire l'URL en encodant correctement chaque valeur
+    # Construire l'URL finale
     url_parts = [f"{BASE_URL}{endpoint}?"]
     for key, value in param_dict.items():
-        # Encoder la valeur en préservant certains caractères dans l'URL
         encoded_value = urllib.parse.quote(value, safe='')
         url_parts.append(f"{key}={encoded_value}&")
     
-    # Retirer le dernier & s'il existe
-    url = ''.join(url_parts)[:-1] if url_parts[-1].endswith('&') else ''.join(url_parts)
+    url = ''.join(url_parts)[:-1]
     
     if 'show_debug' in globals() and show_debug:
         st.write("🔎 URL générée:", url)
@@ -53,9 +64,7 @@ def fetch_cached(endpoint, params=""):
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
-        st.error(f"Réponse: {response.text}")
         return {}
-
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
