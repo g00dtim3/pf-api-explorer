@@ -17,7 +17,17 @@ def fetch_cached(endpoint, params=""):
     import urllib.parse
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
-        encoded_params = "&".join([
+            encoded_params = []
+    for param in params.split("&"):
+        if "=" in param:
+            key, value = param.split("=", 1)
+            if any(c in value for c in ['"', "'", '<', '>']):
+                st.warning(f"Caractère non sécurisé détecté dans la valeur du paramètre '{key}': '{value}'")
+            value = urllib.parse.quote_plus(value.replace("&", "%26"))
+            encoded_params.append(f"{key}={value}")
+        else:
+            encoded_params.append(param)
+    encoded_params = "&".join(encoded_params)
         "{}={}".format(k.split("=")[0], urllib.parse.quote_plus(k.split("=", 1)[1].replace("&", "%26")))
         if "=" in k else k for k in params.split("&")
     ])
