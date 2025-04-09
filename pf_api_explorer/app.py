@@ -15,29 +15,35 @@ st.session_state.setdefault("apply_filters", False)
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
     import urllib.parse
+    import re
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Remplacement simple des & avec %26 avant le premier =
-    if params:
-        parts = []
-        for pair in params.split('&'):
-            if '=' in pair:
-                key, value = pair.split('=', 1)
-                # Encoder les & dans la valeur
-                encoded_value = urllib.parse.quote(value)
-                parts.append(f"{key}={encoded_value}")
-            else:
-                parts.append(pair)
-        safe_params = '&'.join(parts)
-    else:
-        safe_params = ""
+    # Utiliser une expression régulière pour extraire correctement les paires clé=valeur
+    # Cette regex recherche les paires key=value tout en s'assurant que les & à l'intérieur des valeurs sont ignorés
+    param_dict = {}
     
-    # Construire l'URL finale
-    if safe_params:
-        url = f"{BASE_URL}{endpoint}?token={TOKEN}&{safe_params}"
-    else:
-        url = f"{BASE_URL}{endpoint}?token={TOKEN}"
+    # Ajouter le token au dictionnaire de paramètres
+    param_dict["token"] = TOKEN
+    
+    # Utiliser une expression régulière pour capturer les paires clé=valeur
+    if params:
+        key_value_pattern = re.compile(r'([^&=]+)=([^&]*(?:&[^=&]*)*)')
+        matches = key_value_pattern.findall(params)
+        
+        for key, value in matches:
+            # Stocker la paire clé-valeur dans le dictionnaire
+            param_dict[key] = value
+    
+    # Construire l'URL en encodant correctement chaque valeur
+    url_parts = [f"{BASE_URL}{endpoint}?"]
+    for key, value in param_dict.items():
+        # Encoder la valeur en préservant certains caractères dans l'URL
+        encoded_value = urllib.parse.quote(value, safe='')
+        url_parts.append(f"{key}={encoded_value}&")
+    
+    # Retirer le dernier & s'il existe
+    url = ''.join(url_parts)[:-1] if url_parts[-1].endswith('&') else ''.join(url_parts)
     
     if 'show_debug' in globals() and show_debug:
         st.write("🔎 URL générée:", url)
@@ -47,6 +53,7 @@ def fetch_cached(endpoint, params=""):
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
+        st.error(f"Réponse: {response.text}")
         return {}
 
 
