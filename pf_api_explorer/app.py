@@ -28,7 +28,7 @@ def fetch_cached(endpoint, params=""):
         else:
             encoded_params.append(param)
     encoded_params = "&".join(encoded_params)
-        "{}={}".format(k.split("=")[0], urllib.parse.quote_plus(k.split("=", 1)[1].replace("&", "%26")))
+    "{}={}".format(k.split("=")[0], urllib.parse.quote_plus(k.split("=", 1)[1].replace("&", "%26")))
         if "=" in k else k for k in params.split("&")
     ])
     url = f"{BASE_URL}{endpoint}?token={TOKEN}&{encoded_params}"
