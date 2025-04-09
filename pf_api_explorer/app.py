@@ -8,7 +8,7 @@ import altair as alt
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
 # 🔧 Mode debug
-#show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
+show_debug = st.sidebar.toggle("Afficher les URLs (mode debug)", value=False)
 
 st.session_state.setdefault("apply_filters", False)
 
