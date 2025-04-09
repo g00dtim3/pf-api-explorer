@@ -22,7 +22,7 @@ def fetch_cached(endpoint, params=""):
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
-        return {}st.secrets["api"]["token"]
+        return {}
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
