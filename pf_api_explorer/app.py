@@ -23,7 +23,8 @@ def fetch_cached(endpoint, params=None):
         st.error("❌ ERREUR: `params` doit être un dict ou une liste de tuples, pas une chaîne.")
         return {}
 
-    quote_strict = partial(urllib.parse.quote, safe='')
+    def quote_strict(string, safe='/', encoding=None, errors=None):
+    return urllib.parse.quote(string, safe='', encoding=encoding, errors=errors)
 
     if isinstance(params, dict):
         params["token"] = TOKEN
@@ -72,6 +73,7 @@ def fetch_attributes_dynamic(category, subcategory, brand):
 
 def fetch(endpoint, params=None):
     return fetch_cached(endpoint, params)
+
 
 def main():
     st.title("Explorateur API Ratings & Reviews")
