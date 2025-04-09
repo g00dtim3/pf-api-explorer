@@ -18,21 +18,30 @@ def fetch_cached(endpoint, params=""):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    encoded_params = []
-    for pair in params.split("&"):
-        if "=" in pair:
-            key, value = pair.split("=", 1)
-            # Encodage : remplacer les & dans les valeurs par %26, puis encoder complètement
-            value = urllib.parse.quote_plus(value.replace("&", "%26"))
-            encoded_params.append(f"{key}={value}")
-        else:
-            encoded_params.append(pair)
+    # Approche améliorée pour l'encodage des paramètres
+    if params:
+        # D'abord, séparons correctement les paires clé-valeur
+        param_pairs = []
+        for pair in params.split("&"):
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                # Encoder complètement la valeur, y compris les espaces et les &
+                encoded_value = urllib.parse.quote_plus(value)
+                param_pairs.append(f"{key}={encoded_value}")
+            else:
+                param_pairs.append(pair)
+        
+        query_string = "&".join(param_pairs)
+    else:
+        query_string = ""
     
-    query_string = "&".join(encoded_params)
-    url = f"{BASE_URL}{endpoint}?token={TOKEN}&{query_string}"
+    url = f"{BASE_URL}{endpoint}?token={TOKEN}"
+    if query_string:
+        url += f"&{query_string}"
 
-    #if show_debug:
-    st.write("🔎 URL générée :", url)
+    # Si vous avez réactivé le mode debug
+    if 'show_debug' in globals() and show_debug:
+        st.write("🔎 URL générée :", url)
 
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
