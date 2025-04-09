@@ -15,40 +15,43 @@ st.session_state.setdefault("apply_filters", False)
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
     import urllib.parse
-    import re
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Nouvelle approche pour l'encodage des paramètres
-    # Au lieu de diviser par &, on utilise une expression régulière pour trouver les paires clé=valeur
-    final_params = []
+    # Débuggons les paramètres reçus
+    st.write("Paramètres bruts reçus:", repr(params))
     
-    # Trouver toutes les paires clé=valeur en respectant le format
+    # Créons un dictionnaire de paramètres à partir de la chaîne de paramètres
+    param_dict = {}
+    
     if params:
-        # Pattern qui capture les paires key=value
-        pattern = r'([^&=]+)=([^&]*)'
-        matches = re.findall(pattern, params)
-        
-        for key, value in matches:
-            # Encoder correctement la valeur en URL (espaces -> +, caractères spéciaux -> %xx)
-            encoded_value = urllib.parse.quote(value, safe='')
-            final_params.append(f"{key}={encoded_value}")
+        for pair in params.split("&"):
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                st.write(f"Paire analysée - Clé: '{key}', Valeur: '{value}'")
+                param_dict[key] = value
     
-    query_string = "&".join(final_params)
-    url = f"{BASE_URL}{endpoint}?token={TOKEN}"
-    if query_string:
-        url += f"&{query_string}"
-
-    # Si vous avez défini la variable show_debug
-    if 'show_debug' in globals() and show_debug:
-        st.write("🔎 URL générée :", url)
-
+    # Ajoutons le token
+    param_dict["token"] = TOKEN
+    
+    # Construisons l'URL manuellement avec encodage paramètre par paramètre
+    url_parts = [f"{BASE_URL}{endpoint}?"]
+    for key, value in param_dict.items():
+        # Encodage complet de la valeur
+        encoded_value = urllib.parse.quote(value, safe='')
+        url_parts.append(f"{key}={encoded_value}&")
+    
+    # Retirer le dernier & s'il existe
+    url = ''.join(url_parts)[:-1] if url_parts[-1].endswith('&') else ''.join(url_parts)
+    
+    st.write("🔎 URL générée:", url)
+    
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
-        st.error(f"Réponse : {response.text}")
+        st.error(f"Réponse: {response.text}")
         return {}
 
 
