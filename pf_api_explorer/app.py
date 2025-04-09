@@ -17,29 +17,30 @@ def fetch_cached(endpoint, params=""):
     import urllib.parse
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
+    
     encoded_params = []
-    for param in params.split("&"):
-        if "=" in param:
-            key, value = param.split("=", 1)
-            if any(c in value for c in ['"', "'", '<', '>']):
-                st.warning(f"Caractère non sécurisé détecté dans la valeur du paramètre '{key}': '{value}'")
+    for pair in params.split("&"):
+        if "=" in pair:
+            key, value = pair.split("=", 1)
+            # Encodage : remplacer les & dans les valeurs par %26, puis encoder complètement
             value = urllib.parse.quote_plus(value.replace("&", "%26"))
             encoded_params.append(f"{key}={value}")
         else:
-            encoded_params.append(param)
-    encoded_params = "&".join([
-        "{}={}".format(k.split("=")[0], urllib.parse.quote_plus(k.split("=", 1)[1].replace("&", "%26")))
-        if "=" in k else k for k in params.split("&")
-    ])
-    url = f"{BASE_URL}{endpoint}?token={TOKEN}&{encoded_params}"
-    #if 'show_debug' in globals() and show_debug:
-    st.write("🔎 URL générée :", url)
+            encoded_params.append(pair)
+    
+    query_string = "&".join(encoded_params)
+    url = f"{BASE_URL}{endpoint}?token={TOKEN}&{query_string}"
+
+    if show_debug:
+        st.write("🔎 URL générée :", url)
+
     response = requests.get(url, headers={"Accept": "application/json"})
     if response.status_code == 200:
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
         return {}
+
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
