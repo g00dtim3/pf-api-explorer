@@ -24,10 +24,10 @@ def fetch_cached(endpoint, params=None):
 
     if isinstance(params, dict):
         params["token"] = TOKEN
-        query_string = urllib.parse.urlencode(params, doseq=True)
+        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=lambda x, safe: urllib.parse.quote(x, safe=''))
     else:
         params.append(("token", TOKEN))
-        query_string = urllib.parse.urlencode(params, doseq=True)
+        query_string = urllib.parse.urlencode(params, doseq=True, quote_via=lambda x, safe: urllib.parse.quote(x, safe=''))
 
     url = f"{BASE_URL}{endpoint}?{query_string}"
 
