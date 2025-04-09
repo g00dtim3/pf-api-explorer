@@ -14,32 +14,28 @@ st.session_state.setdefault("apply_filters", False)
 
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=""):
-    import urllib.parse
+    from urllib.parse import urlencode, parse_qsl
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     
-    # Approche améliorée pour l'encodage des paramètres
+    # Conversion de la chaîne params en dictionnaire
     if params:
-        # D'abord, séparons correctement les paires clé-valeur
-        param_pairs = []
-        for pair in params.split("&"):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                # Encoder complètement la valeur, y compris les espaces et les &
-                encoded_value = urllib.parse.quote_plus(value)
-                param_pairs.append(f"{key}={encoded_value}")
-            else:
-                param_pairs.append(pair)
-        
-        query_string = "&".join(param_pairs)
+        # Séparation initiale des paires clé=valeur
+        param_pairs = {}
+        for item in params.split('&'):
+            if '=' in item:
+                key, value = item.split('=', 1)
+                param_pairs[key] = value
     else:
-        query_string = ""
+        param_pairs = {}
     
-    url = f"{BASE_URL}{endpoint}?token={TOKEN}"
-    if query_string:
-        url += f"&{query_string}"
+    # Ajout du token
+    param_pairs['token'] = TOKEN
+    
+    # Construction de l'URL avec urlencode qui s'occupera de l'encodage correct
+    url = f"{BASE_URL}{endpoint}?{urlencode(param_pairs)}"
 
-    # Si vous avez réactivé le mode debug
+    # Mode debug
     if 'show_debug' in globals() and show_debug:
         st.write("🔎 URL générée :", url)
 
@@ -48,6 +44,7 @@ def fetch_cached(endpoint, params=""):
         return response.json().get("result")
     else:
         st.error(f"Erreur {response.status_code} sur {url}")
+        st.error(f"Réponse : {response.text}")
         return {}
 
 
