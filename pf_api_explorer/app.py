@@ -313,130 +313,130 @@ def main():
 
     mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
 
-# Remplacer le bloc de code qui traite la requête des reviews
-if st.button("Lancer la requête"):
-    if mode == "Métriques (metrics)":
-        result = fetch("/metrics", params)
-        st.json(result)
-    else:
-        # Initialiser les variables de pagination
-        if "cursor_mark" not in st.session_state:
-            st.session_state.cursor_mark = "*"
-            st.session_state.all_docs = []
-            st.session_state.page_number = 1
-            st.session_state.total_pages = 0
-        
-        params_with_rows = params.copy()
-        params_with_rows["rows"] = 100  # Vous pouvez ajuster ce nombre selon vos besoins (max 1000)
-        
-        # Ajouter le curseur de pagination s'il existe
-        if st.session_state.cursor_mark != "*":
-            params_with_rows["cursorMark"] = st.session_state.cursor_mark
-        
-        result = fetch("/reviews", params_with_rows)
-        
-        # Traiter les résultats
-        if result:
-            docs = result.get("docs", [])
-            total_results = result.get("nbDocs", 0)
-            next_cursor = result.get("nextCursorMark")
+    # Remplacer le bloc de code qui traite la requête des reviews
+    if st.button("Lancer la requête"):
+        if mode == "Métriques (metrics)":
+            result = fetch("/metrics", params)
+            st.json(result)
+        else:
+            # Initialiser les variables de pagination
+            if "cursor_mark" not in st.session_state:
+                st.session_state.cursor_mark = "*"
+                st.session_state.all_docs = []
+                st.session_state.page_number = 1
+                st.session_state.total_pages = 0
             
-            # Calculer le nombre total de pages
-            rows_per_page = params_with_rows["rows"]
-            total_pages = (total_results + rows_per_page - 1) // rows_per_page
-            st.session_state.total_pages = total_pages
+            params_with_rows = params.copy()
+            params_with_rows["rows"] = 100  # Vous pouvez ajuster ce nombre selon vos besoins (max 1000)
             
-            if docs:
-                # Stocker les documents pour cette page
-                st.session_state.all_docs = docs
+            # Ajouter le curseur de pagination s'il existe
+            if st.session_state.cursor_mark != "*":
+                params_with_rows["cursorMark"] = st.session_state.cursor_mark
+            
+            result = fetch("/reviews", params_with_rows)
+            
+            # Traiter les résultats
+            if result:
+                docs = result.get("docs", [])
+                total_results = result.get("nbDocs", 0)
+                next_cursor = result.get("nextCursorMark")
                 
-                # Afficher les informations de pagination
-                st.write(f"Page {st.session_state.page_number}/{total_pages} • {total_results} résultats au total")
+                # Calculer le nombre total de pages
+                rows_per_page = params_with_rows["rows"]
+                total_pages = (total_results + rows_per_page - 1) // rows_per_page
+                st.session_state.total_pages = total_pages
                 
-                # Contrôles de pagination
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col1:
-                    if st.session_state.page_number > 1:
-                        if st.button("⬅️ Page précédente"):
-                            st.warning("La pagination ne permet pas de revenir en arrière avec l'API actuelle.")
-                            st.info("Pour revenir au début, relancez la requête.")
-                with col2:
-                    st.write(f"Page {st.session_state.page_number} sur {total_pages}")
-                with col3:
-                    if next_cursor and next_cursor != st.session_state.cursor_mark and st.session_state.page_number < total_pages:
-                        if st.button("Page suivante ➡️"):
-                            st.session_state.cursor_mark = next_cursor
-                            st.session_state.page_number += 1
-                            st.experimental_rerun()
-                
-                # Créer DataFrame et afficher
-                df = pd.json_normalize(docs)
-                df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                st.dataframe(df)
-                
-                # Options de téléchargement
-                csv = df.to_csv(index=False)
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
-                excel_data = excel_buffer.getvalue()
-                
-                # Téléchargement page courante
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.download_button("📂 Télécharger cette page en CSV", csv, file_name=f"reviews_page{st.session_state.page_number}.csv", mime="text/csv")
-                with col2:
-                    st.download_button("📄 Télécharger cette page en Excel", excel_data, file_name=f"reviews_page{st.session_state.page_number}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                
-                # Option pour télécharger toutes les pages
-                st.write("---")
-                st.warning("⚠️ Le téléchargement de toutes les pages peut prendre du temps pour les grands volumes de données.")
-                if st.button("📥 Télécharger TOUTES les pages (Attention: peut être long)"):
-                    with st.spinner(f"Collecte des données ({total_results} résultats)..."):
-                        all_docs = []
-                        current_cursor = "*"
-                        page = 1
-                        
-                        # Collecte de toutes les pages
-                        progress_bar = st.progress(0)
-                        while True:
-                            temp_params = params_with_rows.copy()
-                            if current_cursor != "*":
-                                temp_params["cursorMark"] = current_cursor
+                if docs:
+                    # Stocker les documents pour cette page
+                    st.session_state.all_docs = docs
+                    
+                    # Afficher les informations de pagination
+                    st.write(f"Page {st.session_state.page_number}/{total_pages} • {total_results} résultats au total")
+                    
+                    # Contrôles de pagination
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col1:
+                        if st.session_state.page_number > 1:
+                            if st.button("⬅️ Page précédente"):
+                                st.warning("La pagination ne permet pas de revenir en arrière avec l'API actuelle.")
+                                st.info("Pour revenir au début, relancez la requête.")
+                    with col2:
+                        st.write(f"Page {st.session_state.page_number} sur {total_pages}")
+                    with col3:
+                        if next_cursor and next_cursor != st.session_state.cursor_mark and st.session_state.page_number < total_pages:
+                            if st.button("Page suivante ➡️"):
+                                st.session_state.cursor_mark = next_cursor
+                                st.session_state.page_number += 1
+                                st.experimental_rerun()
+                    
+                    # Créer DataFrame et afficher
+                    df = pd.json_normalize(docs)
+                    df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+                    st.dataframe(df)
+                    
+                    # Options de téléchargement
+                    csv = df.to_csv(index=False)
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False)
+                    excel_data = excel_buffer.getvalue()
+                    
+                    # Téléchargement page courante
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button("📂 Télécharger cette page en CSV", csv, file_name=f"reviews_page{st.session_state.page_number}.csv", mime="text/csv")
+                    with col2:
+                        st.download_button("📄 Télécharger cette page en Excel", excel_data, file_name=f"reviews_page{st.session_state.page_number}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    
+                    # Option pour télécharger toutes les pages
+                    st.write("---")
+                    st.warning("⚠️ Le téléchargement de toutes les pages peut prendre du temps pour les grands volumes de données.")
+                    if st.button("📥 Télécharger TOUTES les pages (Attention: peut être long)"):
+                        with st.spinner(f"Collecte des données ({total_results} résultats)..."):
+                            all_docs = []
+                            current_cursor = "*"
+                            page = 1
                             
-                            temp_result = fetch("/reviews", temp_params)
-                            temp_docs = temp_result.get("docs", [])
-                            all_docs.extend(temp_docs)
+                            # Collecte de toutes les pages
+                            progress_bar = st.progress(0)
+                            while True:
+                                temp_params = params_with_rows.copy()
+                                if current_cursor != "*":
+                                    temp_params["cursorMark"] = current_cursor
+                                
+                                temp_result = fetch("/reviews", temp_params)
+                                temp_docs = temp_result.get("docs", [])
+                                all_docs.extend(temp_docs)
+                                
+                                next_cursor = temp_result.get("nextCursorMark")
+                                if next_cursor == current_cursor or not next_cursor or not temp_docs:
+                                    break
+                                
+                                current_cursor = next_cursor
+                                page += 1
+                                progress_bar.progress(min(len(all_docs) / total_results, 1.0))
                             
-                            next_cursor = temp_result.get("nextCursorMark")
-                            if next_cursor == current_cursor or not next_cursor or not temp_docs:
-                                break
-                            
-                            current_cursor = next_cursor
-                            page += 1
-                            progress_bar.progress(min(len(all_docs) / total_results, 1.0))
-                        
-                        # Créer DataFrame avec toutes les données
-                        if all_docs:
-                            all_df = pd.json_normalize(all_docs)
-                            all_df = all_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                            
-                            all_csv = all_df.to_csv(index=False)
-                            all_excel_buffer = io.BytesIO()
-                            with pd.ExcelWriter(all_excel_buffer, engine='openpyxl') as writer:
-                                all_df.to_excel(writer, index=False)
-                            all_excel_data = all_excel_buffer.getvalue()
-                            
-                            # Boutons de téléchargement pour toutes les données
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.download_button("📂 Télécharger TOUTES les données en CSV", all_csv, file_name="all_reviews.csv", mime="text/csv")
-                            with col2:
-                                st.download_button("📄 Télécharger TOUTES les données en Excel", all_excel_data, file_name="all_reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            # Créer DataFrame avec toutes les données
+                            if all_docs:
+                                all_df = pd.json_normalize(all_docs)
+                                all_df = all_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+                                
+                                all_csv = all_df.to_csv(index=False)
+                                all_excel_buffer = io.BytesIO()
+                                with pd.ExcelWriter(all_excel_buffer, engine='openpyxl') as writer:
+                                    all_df.to_excel(writer, index=False)
+                                all_excel_data = all_excel_buffer.getvalue()
+                                
+                                # Boutons de téléchargement pour toutes les données
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.download_button("📂 Télécharger TOUTES les données en CSV", all_csv, file_name="all_reviews.csv", mime="text/csv")
+                                with col2:
+                                    st.download_button("📄 Télécharger TOUTES les données en Excel", all_excel_data, file_name="all_reviews.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                else:
+                    st.warning("Aucune review trouvée pour ces critères.")
             else:
                 st.warning("Aucune review trouvée pour ces critères.")
-        else:
-            st.warning("Aucune review trouvée pour ces critères.")
 
 if __name__ == "__main__":
     main()
