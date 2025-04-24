@@ -15,7 +15,7 @@ st.session_state.setdefault("apply_filters", False)
 def fetch_cached(endpoint, params=None):
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
-    show_debug = True
+    show_debug = False
 
     if params is None:
         params = {}
