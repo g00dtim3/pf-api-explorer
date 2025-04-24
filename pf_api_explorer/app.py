@@ -364,7 +364,16 @@ def main():
                     
                     # Afficher le nombre total de résultats et les informations de pagination
                     st.write("📥 Nombre de résultats reçus :", len(result["docs"]))
-                    st.write(f"**{total_results} résultats trouvés** (environ {total_pages} pages)")
+                    nb_docs_displayed = len(result.get("docs", []))
+                    current_page = 1  # pour l’instant statique
+                    
+                    st.markdown(f"""
+                    ### 📋 Résultats
+                    - **Résultats trouvés** : `{total_results}`
+                    - **Résultats affichés sur cette page** : `{nb_docs_displayed}`
+                    - **Page actuelle** : `{current_page}` / environ `{total_pages}`
+                    """)
+
                     
                     # Créer DataFrame et afficher la première page
                     df = pd.json_normalize(docs)
