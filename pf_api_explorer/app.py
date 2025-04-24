@@ -193,123 +193,123 @@ def main():
                         product_info[label] = p
                         product_data.append({"Marque": b, "Produit": p})
 
-if product_data:
-    st.subheader("📊 Produits disponibles")
-    
-    # Initialiser la sélection dans session_state si nécessaire
-    if "selected_product_ids" not in st.session_state:
-        st.session_state.selected_product_ids = []
-    
-    # Ajouter une recherche pour filtrer les produits
-    search_text = st.text_input("🔍 Filtrer les produits")
-    
-    # Récupérer le nombre d'avis par produit
-    with st.spinner("Récupération du nombre d'avis par produit..."):
-        for i, row in enumerate(product_data):
-            product_name = row["Produit"]
-            brand_name = row["Marque"]
-            product_params = {
-                "product": product_name,
-                "brand": brand_name,
-                "start-date": filters["start_date"],
-                "end-date": filters["end_date"]
-            }
-            metrics = fetch("/metrics", product_params)
-            nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-            product_data[i]["Nombre d'avis"] = nb_reviews
-    
-    # Créer un DataFrame avec les données
-    df_products = pd.DataFrame(product_data)
-    
-    # Filtrer selon la recherche
-    if search_text:
-        mask = df_products["Produit"].str.contains(search_text, case=False) | df_products["Marque"].str.contains(search_text, case=False)
-        filtered_df = df_products[mask]
-    else:
-        filtered_df = df_products
-    
-    # Trier le DataFrame (par défaut par nombre d'avis, décroissant)
-    if "sort_column" not in st.session_state:
-        st.session_state.sort_column = "Nombre d'avis"
-        st.session_state.sort_ascending = False
+    if product_data:
+        st.subheader("📊 Produits disponibles")
         
-    # Boutons de tri
-    col1, col2, col3 = st.columns([2, 2, 2])
-    with col1:
-        if st.button("Trier par marque"):
-            st.session_state.sort_column = "Marque"
-            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Marque" else True
-    with col2:
-        if st.button("Trier par produit"):
-            st.session_state.sort_column = "Produit"
-            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Produit" else True
-    with col3:
-        if st.button("Trier par nb d'avis"):
+        # Initialiser la sélection dans session_state si nécessaire
+        if "selected_product_ids" not in st.session_state:
+            st.session_state.selected_product_ids = []
+        
+        # Ajouter une recherche pour filtrer les produits
+        search_text = st.text_input("🔍 Filtrer les produits")
+        
+        # Récupérer le nombre d'avis par produit
+        with st.spinner("Récupération du nombre d'avis par produit..."):
+            for i, row in enumerate(product_data):
+                product_name = row["Produit"]
+                brand_name = row["Marque"]
+                product_params = {
+                    "product": product_name,
+                    "brand": brand_name,
+                    "start-date": filters["start_date"],
+                    "end-date": filters["end_date"]
+                }
+                metrics = fetch("/metrics", product_params)
+                nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
+                product_data[i]["Nombre d'avis"] = nb_reviews
+        
+        # Créer un DataFrame avec les données
+        df_products = pd.DataFrame(product_data)
+        
+        # Filtrer selon la recherche
+        if search_text:
+            mask = df_products["Produit"].str.contains(search_text, case=False) | df_products["Marque"].str.contains(search_text, case=False)
+            filtered_df = df_products[mask]
+        else:
+            filtered_df = df_products
+        
+        # Trier le DataFrame (par défaut par nombre d'avis, décroissant)
+        if "sort_column" not in st.session_state:
             st.session_state.sort_column = "Nombre d'avis"
-            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Nombre d'avis" else False
-    
-    # Appliquer le tri
-    filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
-    
-    # Afficher le tableau avec les cases à cocher
-    st.write(f"Nombre de produits: {len(filtered_df)} | Tri actuel: {st.session_state.sort_column} ({'croissant' if st.session_state.sort_ascending else 'décroissant'})")
-    
-    # En-têtes du tableau
-    header_col1, header_col2, header_col3, header_col4 = st.columns([0.5, 2, 2, 1])
-    with header_col1:
-        st.write("**Sélect.**")
-    with header_col2:
-        st.write("**Marque**")
-    with header_col3:
-        st.write("**Produit**")
-    with header_col4:
-        st.write("**Nombre d'avis**")
-    
-    # Stocker temporairement les modifications actuelles
-    temp_selected = set(st.session_state.selected_product_ids)
-    
-    # Créer un sélecteur pour chaque ligne
-    for index, row in filtered_df.iterrows():
-        product_id = row["Produit"]
-        col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
+            st.session_state.sort_ascending = False
+            
+        # Boutons de tri
+        col1, col2, col3 = st.columns([2, 2, 2])
         with col1:
-            is_selected = st.checkbox("", value=product_id in st.session_state.selected_product_ids, key=f"check_{product_id}")
+            if st.button("Trier par marque"):
+                st.session_state.sort_column = "Marque"
+                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Marque" else True
         with col2:
-            st.write(row["Marque"])
+            if st.button("Trier par produit"):
+                st.session_state.sort_column = "Produit"
+                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Produit" else True
         with col3:
-            st.write(row["Produit"])
-        with col4:
-            st.write(f"{row['Nombre d\'avis']}")
+            if st.button("Trier par nb d'avis"):
+                st.session_state.sort_column = "Nombre d'avis"
+                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Nombre d'avis" else False
         
-        # Mettre à jour la sélection temporaire
-        if is_selected:
-            temp_selected.add(product_id)
-        elif product_id in temp_selected:
-            temp_selected.remove(product_id)
+        # Appliquer le tri
+        filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
+        
+        # Afficher le tableau avec les cases à cocher
+        st.write(f"Nombre de produits: {len(filtered_df)} | Tri actuel: {st.session_state.sort_column} ({'croissant' if st.session_state.sort_ascending else 'décroissant'})")
+        
+        # En-têtes du tableau
+        header_col1, header_col2, header_col3, header_col4 = st.columns([0.5, 2, 2, 1])
+        with header_col1:
+            st.write("**Sélect.**")
+        with header_col2:
+            st.write("**Marque**")
+        with header_col3:
+            st.write("**Produit**")
+        with header_col4:
+            st.write("**Nombre d'avis**")
+        
+        # Stocker temporairement les modifications actuelles
+        temp_selected = set(st.session_state.selected_product_ids)
+        
+        # Créer un sélecteur pour chaque ligne
+        for index, row in filtered_df.iterrows():
+            product_id = row["Produit"]
+            col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
+            with col1:
+                is_selected = st.checkbox("", value=product_id in st.session_state.selected_product_ids, key=f"check_{product_id}")
+            with col2:
+                st.write(row["Marque"])
+            with col3:
+                st.write(row["Produit"])
+            with col4:
+                st.write(f"{row['Nombre d\'avis']}")
+            
+            # Mettre à jour la sélection temporaire
+            if is_selected:
+                temp_selected.add(product_id)
+            elif product_id in temp_selected:
+                temp_selected.remove(product_id)
+        
+        # Mettre à jour la liste des produits sélectionnés
+        st.session_state.selected_product_ids = list(temp_selected)
+        selected_products = st.session_state.selected_product_ids
+        
+        st.write("---")
+        st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
+    else:
+        st.warning("Aucun produit disponible pour les filtres sélectionnés.")
+        selected_products = []
     
-    # Mettre à jour la liste des produits sélectionnés
-    st.session_state.selected_product_ids = list(temp_selected)
-    selected_products = st.session_state.selected_product_ids
+    st.markdown("---")
+    st.subheader("Disponibilité des données")
     
-    st.write("---")
-    st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
-else:
-    st.warning("Aucun produit disponible pour les filtres sélectionnés.")
-    selected_products = []
-
-st.markdown("---")
-st.subheader("Disponibilité des données")
-
-# Mise à jour des paramètres avec les produits sélectionnés
-if selected_products:
-    params["product"] = ",".join(selected_products)
-
-# Requête pour obtenir les métriques avec les produits sélectionnés
-dynamic_metrics = fetch("/metrics", params)
-if dynamic_metrics and dynamic_metrics.get("nbDocs"):
-    st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
-else:
-    st.warning("Aucune review disponible pour cette combinaison")
+    # Mise à jour des paramètres avec les produits sélectionnés
+    if selected_products:
+        params["product"] = ",".join(selected_products)
+    
+    # Requête pour obtenir les métriques avec les produits sélectionnés
+    dynamic_metrics = fetch("/metrics", params)
+    if dynamic_metrics and dynamic_metrics.get("nbDocs"):
+        st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+    else:
+        st.warning("Aucune review disponible pour cette combinaison")
 
     mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
 
