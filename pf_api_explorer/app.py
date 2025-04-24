@@ -356,12 +356,14 @@ def main():
                 
                 # Récupérer la première page pour l'affichage
                 result = fetch("/reviews", params_with_rows)
+                st.write("📤 Paramètres envoyés à /reviews :", params_with_rows)
                 
                 if result and result.get("docs"):
                     docs = result.get("docs", [])
                     next_cursor = result.get("nextCursorMark")
                     
                     # Afficher le nombre total de résultats et les informations de pagination
+                    st.write("📥 Nombre de résultats reçus :", len(result["docs"]))
                     st.write(f"**{total_results} résultats trouvés** (environ {total_pages} pages)")
                     
                     # Créer DataFrame et afficher la première page
