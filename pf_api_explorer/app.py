@@ -198,10 +198,38 @@ def main():
         df_products = pd.DataFrame(product_data)
         st.dataframe(df_products)
 
-    search_text = st.text_input("🔍 Rechercher un produit")
-    display_list = [k for k in product_info if search_text.lower() in k.lower()]
-    selected_display = st.multiselect("Produits", display_list)
-    selected_products = [product_info[label] for label in selected_display]
+search_text = st.text_input("🔍 Rechercher un produit")
+display_list = [k for k in product_info if search_text.lower() in k.lower()]
+
+# Initialiser la variable de session si elle n'existe pas
+if "selected_products_labels" not in st.session_state:
+    st.session_state.selected_products_labels = []
+
+# Permettre la sélection à partir des résultats de recherche
+new_selections = st.multiselect(
+    "Produits filtrés", 
+    display_list,
+    default=[]
+)
+
+# Ajouter les nouvelles sélections à la liste existante (sans doublons)
+for selection in new_selections:
+    if selection not in st.session_state.selected_products_labels:
+        st.session_state.selected_products_labels.append(selection)
+
+# Afficher toutes les sélections avec possibilité de désélectionner
+st.write("Produits sélectionnés:")
+selected_display = st.multiselect(
+    "Produits à analyser", 
+    sorted(list(product_info.keys())),
+    default=st.session_state.selected_products_labels
+)
+
+# Mettre à jour la liste des sélections dans la session
+st.session_state.selected_products_labels = selected_display
+
+# Convertir les labels en identifiants de produits
+selected_products = [product_info[label] for label in selected_display]
 
     if selected_products:
         params["product"] = ",".join(selected_products)
