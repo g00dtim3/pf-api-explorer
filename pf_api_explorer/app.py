@@ -197,35 +197,53 @@ def main():
         st.subheader("📊 Produits disponibles")
         df_products = pd.DataFrame(product_data)
         st.dataframe(df_products)
-
-search_text = st.text_input("🔍 Rechercher un produit")
-display_list = [k for k in product_info if search_text.lower() in k.lower()]
-
-# Initialiser la variable de session si elle n'existe pas
+    # Initialiser les variables de session si elles n'existent pas
 if "selected_products_labels" not in st.session_state:
     st.session_state.selected_products_labels = []
+if "search_text" not in st.session_state:
+    st.session_state.search_text = ""
 
-# Permettre la sélection à partir des résultats de recherche
-new_selections = st.multiselect(
-    "Produits filtrés", 
-    display_list,
-    default=[]
-)
+def add_selection():
+    # Ajouter les nouvelles sélections à la liste persistante
+    for item in st.session_state.temp_selection:
+        if item not in st.session_state.selected_products_labels:
+            st.session_state.selected_products_labels.append(item)
+    
+    # Effacer la sélection temporaire après l'ajout
+    st.session_state.temp_selection = []
 
-# Ajouter les nouvelles sélections à la liste existante (sans doublons)
-for selection in new_selections:
-    if selection not in st.session_state.selected_products_labels:
-        st.session_state.selected_products_labels.append(selection)
+# Champ de recherche
+search_text = st.text_input("🔍 Rechercher un produit", key="search_input", value=st.session_state.search_text)
+st.session_state.search_text = search_text
 
-# Afficher toutes les sélections avec possibilité de désélectionner
-st.write("Produits sélectionnés:")
+# Filtrer les produits selon la recherche
+display_list = [k for k in product_info if search_text.lower() in k.lower()]
+
+# Sélection temporaire des produits filtrés
+if "temp_selection" not in st.session_state:
+    st.session_state.temp_selection = []
+
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.multiselect(
+        "Produits filtrés", 
+        options=display_list,
+        default=[],
+        key="temp_selection"
+    )
+with col2:
+    st.button("Ajouter à ma sélection", on_click=add_selection)
+
+# Afficher et gérer les produits déjà sélectionnés
+st.write("**Produits sélectionnés :**")
 selected_display = st.multiselect(
-    "Produits à analyser", 
-    sorted(list(product_info.keys())),
-    default=st.session_state.selected_products_labels
+    "Produits à analyser",
+    options=sorted(list(product_info.keys())),
+    default=st.session_state.selected_products_labels,
+    key="final_selection"
 )
 
-# Mettre à jour la liste des sélections dans la session
+# Mettre à jour la liste persistante avec les modifications
 st.session_state.selected_products_labels = selected_display
 
 # Convertir les labels en identifiants de produits
