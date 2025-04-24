@@ -320,6 +320,11 @@ def main():
             rows_per_page = st.number_input("Nombre de lignes par page", min_value=10, max_value=1000, value=100, step=10)
         with col2:
             use_random = st.checkbox("Randomiser les résultats", value=False)
+
+    if use_random:
+        random_seed = st.number_input("Seed aléatoire (1-9999)", min_value=1, max_value=9999, value=42, step=1)
+    else:
+        random_seed = None
     
     if st.button("Lancer la requête"):
         if mode == "Métriques (metrics)":
@@ -335,8 +340,9 @@ def main():
             params_with_rows = params.copy()
             params_with_rows["rows"] = int(rows_per_page)
             
-            if use_random:
-                params_with_rows["random"] = "true"
+            if use_random and random_seed:
+                params_with_rows["random"] = str(random_seed)
+
             
             # Récupération des métriques pour connaître le total
             metrics_result = fetch("/metrics", params)
