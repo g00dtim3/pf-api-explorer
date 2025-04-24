@@ -195,62 +195,68 @@ def main():
 
     if product_data:
         st.subheader("📊 Produits disponibles")
+        
+        # Initialiser la sélection dans session_state si nécessaire
+        if "selected_product_ids" not in st.session_state:
+            st.session_state.selected_product_ids = []
+        
+        # Ajouter une recherche pour filtrer les produits
+        search_text = st.text_input("🔍 Filtrer les produits")
+        
+        # Récupérer le nombre d'avis par produit
+        with st.spinner("Récupération du nombre d'avis par produit..."):
+            for i, row in enumerate(product_data):
+                product_name = row["Produit"]
+                brand_name = row["Marque"]
+                product_params = {
+                    "product": product_name,
+                    "brand": brand_name,
+                    "start-date": filters["start_date"],
+                    "end-date": filters["end_date"]
+                }
+                metrics = fetch("/metrics", product_params)
+                nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
+                product_data[i]["Nombre d'avis"] = nb_reviews
+        
+        # Créer un DataFrame avec les données
         df_products = pd.DataFrame(product_data)
-        st.dataframe(df_products)
-    # Initialiser les variables de session si elles n'existent pas
-if "selected_products_labels" not in st.session_state:
-    st.session_state.selected_products_labels = []
-if "search_text" not in st.session_state:
-    st.session_state.search_text = ""
-
-def add_selection():
-    # Ajouter les nouvelles sélections à la liste persistante
-    for item in st.session_state.temp_selection:
-        if item not in st.session_state.selected_products_labels:
-            st.session_state.selected_products_labels.append(item)
-    
-    # Effacer la sélection temporaire après l'ajout
-    st.session_state.temp_selection = []
-
-# Champ de recherche
-search_text = st.text_input("🔍 Rechercher un produit", key="search_input", value=st.session_state.search_text)
-st.session_state.search_text = search_text
-
-# Filtrer les produits selon la recherche
-display_list = [k for k in product_info if search_text.lower() in k.lower()]
-
-# Sélection temporaire des produits filtrés
-if "temp_selection" not in st.session_state:
-    st.session_state.temp_selection = []
-
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.multiselect(
-        "Produits filtrés", 
-        options=display_list,
-        default=[],
-        key="temp_selection"
-    )
-with col2:
-    st.button("Ajouter à ma sélection", on_click=add_selection)
-
-# Afficher et gérer les produits déjà sélectionnés
-st.write("**Produits sélectionnés :**")
-selected_display = st.multiselect(
-    "Produits à analyser",
-    options=sorted(list(product_info.keys())),
-    default=st.session_state.selected_products_labels,
-    key="final_selection"
-)
-
-# Mettre à jour la liste persistante avec les modifications
-st.session_state.selected_products_labels = selected_display
-
-# Convertir les labels en identifiants de produits
-selected_products = [product_info[label] for label in selected_display]
-
-    if selected_products:
-        params["product"] = ",".join(selected_products)
+        
+        # Filtrer selon la recherche
+        if search_text:
+            mask = df_products["Produit"].str.contains(search_text, case=False) | df_products["Marque"].str.contains(search_text, case=False)
+            filtered_df = df_products[mask]
+        else:
+            filtered_df = df_products
+        
+        # Afficher le tableau avec les cases à cocher
+        st.write(f"Nombre de produits: {len(filtered_df)}")
+        
+        # Créer un sélecteur pour chaque ligne
+        selected_rows = []
+        for index, row in filtered_df.iterrows():
+            product_id = row["Produit"]
+            col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
+            with col1:
+                is_selected = st.checkbox("", value=product_id in st.session_state.selected_product_ids, key=f"check_{product_id}")
+            with col2:
+                st.write(row["Marque"])
+            with col3:
+                st.write(row["Produit"])
+            with col4:
+                st.write(f"{row['Nombre d\'avis']} avis")
+            
+            if is_selected:
+                selected_rows.append(product_id)
+        
+        # Mettre à jour la liste des produits sélectionnés
+        st.session_state.selected_product_ids = selected_rows
+        selected_products = selected_rows
+        
+        st.write("---")
+        st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
+    else:
+        st.warning("Aucun produit disponible pour les filtres sélectionnés.")
+        selected_products = []
 
     st.markdown("---")
     st.subheader("Disponibilité des données")
