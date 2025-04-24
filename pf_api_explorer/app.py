@@ -311,8 +311,37 @@ def main():
     else:
         st.warning("Aucune review disponible pour cette combinaison")
 
-    mode = st.radio("Afficher", ["Métriques (metrics)", "Reviews"])
+    st.markdown("## ⚙️ Paramètres d’export des reviews")
 
+    with st.expander("🔧 Options d’export", expanded=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            rows_per_page = st.number_input(
+                "Nombre de reviews à récupérer par page (max 1000)",
+                min_value=10,
+                max_value=1000,
+                value=100,
+                step=10
+            )
+        
+        with col2:
+            use_random = st.checkbox("Randomiser les résultats")
+            if use_random:
+                random_seed = st.number_input("Seed aléatoire (1-9999)", min_value=1, max_value=9999, value=42)
+            else:
+                random_seed = None
+    
+        st.markdown("### 📊 Quotas API")
+        quotas = fetch("/quotas")
+        if quotas:
+            st.metric("Quota utilisé", quotas['used volume'])
+            st.metric("Quota restant", quotas['remaining volume'])
+            st.metric("Quota total", quotas['quota'])
+            st.metric("Valable jusqu’au", quotas['end date'])
+    
+        if st.button("📥 Lancer l’export des reviews"):
+            # insérer ici ta logique d’export existante
     # Options d'export pour les reviews
     if mode == "Reviews":
         col1, col2 = st.columns(2)
