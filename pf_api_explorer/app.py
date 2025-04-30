@@ -451,22 +451,40 @@ def main():
             rows_per_page = int(rows_per_page)
             total_pages = (total_results + rows_per_page - 1) // rows_per_page
             current_page = st.session_state.current_page
-    
+
             start_idx = (current_page - 1) * rows_per_page
             end_idx = start_idx + rows_per_page
+
+            # Si la page suivante est demandée et non encore chargée
+            if end_idx > len(docs) and st.session_state.next_cursor:
+                params_with_rows = params.copy()
+                params_with_rows["rows"] = rows_per_page
+                if use_random and random_seed:
+                    params_with_rows["random"] = str(random_seed)
+                params_with_rows["cursorMark"] = st.session_state.next_cursor
+
+                result = fetch("/reviews", params_with_rows)
+                if result and result.get("docs"):
+                    new_docs = result.get("docs", [])
+                    st.session_state.all_docs.extend(new_docs)
+                    st.session_state.next_cursor = result.get("nextCursorMark")
+                    total_results = len(st.session_state.all_docs)
+                    total_pages = (total_results + rows_per_page - 1) // rows_per_page
+                    docs = st.session_state.all_docs  # refresh local ref
+
             page_docs = docs[start_idx:end_idx]
-    
+
             st.markdown(f"""
             ### 📋 Résultats
             - **Total stocké** : `{total_results}`
             - **Affichés sur cette page** : `{len(page_docs)}`
             - **Page actuelle** : `{current_page}` / environ `{total_pages}`
             """)
-    
+
             df = pd.json_normalize(page_docs)
             df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
             st.dataframe(df)
-    
+
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("⬅️ Page précédente") and st.session_state.current_page > 1:
@@ -474,21 +492,21 @@ def main():
             with col2:
                 if st.button("➡️ Page suivante") and st.session_state.current_page < total_pages:
                     st.session_state.current_page += 1
-    
+
             # Export de la page actuelle
             all_csv = df.to_csv(index=False)
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False)
             excel_data = excel_buffer.getvalue()
-    
+
             st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
             col1, col2 = st.columns(2)
             with col1:
                 st.download_button("📂 Télécharger en CSV", all_csv, file_name="reviews_export.csv", mime="text/csv")
             with col2:
                 st.download_button("📄 Télécharger en Excel", excel_data, file_name="reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
+
             # Export de toutes les données stockées
             st.markdown("---")
             st.subheader("📦 Exporter toutes les pages")
@@ -499,7 +517,7 @@ def main():
             with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
                 full_df.to_excel(writer, index=False)
             excel_data_full = excel_buffer_full.getvalue()
-    
+
             colf1, colf2 = st.columns(2)
             with colf1:
                 st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name="all_reviews_export.csv", mime="text/csv")
