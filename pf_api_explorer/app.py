@@ -391,25 +391,21 @@ def main():
             st.session_state.current_page = 1
             st.session_state.all_docs = []
             st.session_state.next_cursor = None
-    
+        
             params_with_rows = params.copy()
             params_with_rows["rows"] = int(rows_per_page)
             if use_random and random_seed:
                 params_with_rows["random"] = str(random_seed)
-    
-            metrics_result = fetch("/metrics", params)
-            total_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
-    
-            if total_results == 0:
-                st.warning("Aucune review disponible pour cette combinaison")
-            else:
-                total_pages = (total_results + rows_per_page - 1) // rows_per_page
+        
+            with st.spinner("🔄 Chargement des reviews depuis l'API..."):
                 result = fetch("/reviews", params_with_rows)
-    
                 if result and result.get("docs"):
                     docs = result.get("docs", [])
                     st.session_state.all_docs = docs.copy()
                     st.session_state.next_cursor = result.get("nextCursorMark")
+                    st.success(f"✅ {len(docs)} reviews chargées avec succès.")
+                else:
+                    st.warning("Aucune donnée retournée par l’API.")
     
                     # 🔒 Génération du log d'export local (changer le chemin si besoin)
                     export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
