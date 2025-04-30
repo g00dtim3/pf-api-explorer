@@ -384,6 +384,9 @@ def main():
     
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
+
+        if selected_products:
+            params["product"] = ",".join(selected_products)
     
         if st.button("📅 Lancer l’export des reviews"):
             # Réinitialiser la session
