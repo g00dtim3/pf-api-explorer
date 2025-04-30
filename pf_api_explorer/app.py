@@ -426,7 +426,7 @@ def main():
                             "country": export_country,
                             "rows": rows_per_page,
                             "random_seed": random_seed if use_random else None,
-                            "nb_reviews": len(docs),
+                            "nb_reviews": len(st.session_state.all_docs),
                             "export_timestamp": export_date
                         })
     
