@@ -399,6 +399,8 @@ def main():
             params_with_rows["rows"] = int(rows_per_page)
             if use_random and random_seed:
                 params_with_rows["random"] = str(random_seed)
+
+            st.write("📤 Paramètres envoyés à l’API:", params_with_rows)
         
             with st.spinner("🔄 Chargement des reviews depuis l'API..."):
                 result = fetch("/reviews", params_with_rows)
