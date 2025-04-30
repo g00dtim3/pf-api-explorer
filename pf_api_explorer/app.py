@@ -386,12 +386,16 @@ def main():
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
 
         # 🔄 Construction complète des paramètres API avant export
-        params["start-date"] = start_date.strftime("%Y-%m-%d")
-        params["end-date"] = end_date.strftime("%Y-%m-%d")
-        params["category"] = selected_category
-        params["subcategory"] = selected_subcategory
-        params["brand"] = ",".join(selected_brands)
-        params["country"] = selected_country
+        params["start-date"] = filters["start_date"].strftime("%Y-%m-%d")
+        params["end-date"] = filters["end_date"].strftime("%Y-%m-%d")
+        if filters["category"] != "ALL":
+            params["category"] = filters["category"]
+        if filters["subcategory"] != "ALL":
+            params["subcategory"] = filters["subcategory"]
+        if filters["brand"]:
+            params["brand"] = ",".join(filters["brand"])
+        if filters["country"] and "ALL" not in filters["country"]:
+            params["country"] = ",".join(filters["country"])
         if selected_products:
             params["product"] = ",".join(selected_products)
     
