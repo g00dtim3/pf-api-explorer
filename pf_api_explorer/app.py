@@ -313,8 +313,15 @@ def main():
 
     st.markdown("## ⚙️ Paramètres d’export des reviews")
 
-    import os
+   import os
     from pathlib import Path
+    
+    log_path = Path("review_exports_log.csv")
+    if log_path.exists():
+        with st.expander("📑 Consulter le journal des exports précédents", expanded=False):
+            export_log_df = pd.read_csv(log_path)
+            st.dataframe(export_log_df)
+            st.download_button("⬇️ Télécharger le journal des exports", export_log_df.to_csv(index=False), file_name="review_exports_log.csv", mime="text/csv")
     
     with st.expander("🔧 Options d’export", expanded=True):
         col1, col2 = st.columns(2)
@@ -379,7 +386,6 @@ def main():
                     st.session_state.next_cursor = result.get("nextCursorMark")
     
                     # 🔒 Génération du log d'export local (changer le chemin si besoin)
-                    log_path = Path("review_exports_log.csv")
                     export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
                     product_names = params.get("product", "").split(",")
