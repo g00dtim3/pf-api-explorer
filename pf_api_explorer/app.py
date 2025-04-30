@@ -318,7 +318,7 @@ def main():
     
     log_path = Path("review_exports_log.csv")
     if log_path.exists():
-        with st.expander("📑 Consulter le journal des exports précédents", expanded=False):
+        with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
             export_log_df = pd.read_csv(log_path)
             st.dataframe(export_log_df)
             st.download_button("⬇️ Télécharger le journal des exports", export_log_df.to_csv(index=False), file_name="review_exports_log.csv", mime="text/csv")
@@ -358,6 +358,28 @@ def main():
             st.session_state.all_docs = []
         if "next_cursor" not in st.session_state:
             st.session_state.next_cursor = None
+    
+        # ✅ Vérification d’export déjà réalisé
+        potential_duplicates = []
+        if log_path.exists():
+            try:
+                export_log_df = pd.read_csv(log_path)
+                product_names = params.get("product", "").split(",")
+                start = str(params.get("start-date"))
+                end = str(params.get("end-date"))
+                for prod in product_names:
+                    dupes = export_log_df[
+                        (export_log_df["product"] == prod) &
+                        (export_log_df["start_date"] == start) &
+                        (export_log_df["end_date"] == end)
+                    ]
+                    if not dupes.empty:
+                        potential_duplicates.append(prod)
+            except Exception as e:
+                st.warning(f"Erreur de lecture du fichier log : {e}")
+    
+        if potential_duplicates:
+            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour cette période : {', '.join(potential_duplicates)}")
     
         if st.button("📅 Lancer l’export des reviews"):
             # Réinitialiser la session
