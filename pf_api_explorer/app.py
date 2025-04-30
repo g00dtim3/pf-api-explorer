@@ -396,28 +396,28 @@ def main():
             params["product"] = ",".join(selected_products)
     
         if st.button("📅 Lancer l’export des reviews"):
-        # Réinitialiser la session
-        st.session_state.cursor_mark = "*"
-        st.session_state.current_page = 1
-        st.session_state.all_docs = []
-        st.session_state.next_cursor = None
-    
-        params_with_rows = params.copy()
-        params_with_rows["rows"] = int(rows_per_page)
-        if use_random and random_seed:
-            params_with_rows["random"] = str(random_seed)
-    
-        st.write("📤 Paramètres envoyés à l’API:", params_with_rows)  # debug visible
-    
-        with st.spinner("🔄 Chargement des reviews depuis l'API..."):
-            result = fetch("/reviews", params_with_rows)
-            if result and result.get("docs"):
-                docs = result.get("docs", [])
-                st.session_state.all_docs = docs.copy()
-                st.session_state.next_cursor = result.get("nextCursorMark")
-                st.success(f"✅ {len(docs)} reviews chargées avec succès.")
-            else:
-                st.warning("Aucune donnée retournée par l’API.")
+            # Réinitialiser la session
+            st.session_state.cursor_mark = "*"
+            st.session_state.current_page = 1
+            st.session_state.all_docs = []
+            st.session_state.next_cursor = None
+        
+            params_with_rows = params.copy()
+            params_with_rows["rows"] = int(rows_per_page)
+            if use_random and random_seed:
+                params_with_rows["random"] = str(random_seed)
+        
+            st.write("📤 Paramètres envoyés à l’API:", params_with_rows)  # debug visible
+        
+            with st.spinner("🔄 Chargement des reviews depuis l'API..."):
+                result = fetch("/reviews", params_with_rows)
+                if result and result.get("docs"):
+                    docs = result.get("docs", [])
+                    st.session_state.all_docs = docs.copy()
+                    st.session_state.next_cursor = result.get("nextCursorMark")
+                    st.success(f"✅ {len(docs)} reviews chargées avec succès.")
+                else:
+                    st.warning("Aucune donnée retournée par l’API.")
     
                     # 🔒 Génération du log d'export local (changer le chemin si besoin)
                     export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
