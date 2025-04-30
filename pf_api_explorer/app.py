@@ -413,6 +413,8 @@ def main():
     
                     # 🔒 Génération du log d'export local (changer le chemin si besoin)
                     export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                    export_country = params.get("country", "Tous")
     
                     product_names = params.get("product", "").split(",")
                     brand_names = params.get("brand", "").split(",")
@@ -425,6 +427,7 @@ def main():
                             "brand": brand,
                             "start_date": params.get("start-date"),
                             "end_date": params.get("end-date"),
+                            "country": export_country,
                             "rows": rows_per_page,
                             "random_seed": random_seed if use_random else None,
                             "nb_reviews": len(docs),
