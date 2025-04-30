@@ -313,7 +313,7 @@ def main():
 
     st.markdown("## ⚙️ Paramètres d’export des reviews")
 
-   import os
+    import os
     from pathlib import Path
     
     log_path = Path("review_exports_log.csv")
