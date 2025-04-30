@@ -510,6 +510,25 @@ def main():
             # Export de toutes les données stockées
             st.markdown("---")
             st.subheader("📦 Exporter toutes les pages")
+
+            if st.button("🔄 Charger toutes les pages depuis l'API"):
+                with st.spinner("Chargement de toutes les reviews..."):
+                    while st.session_state.next_cursor:
+                        params_with_rows = params.copy()
+                        params_with_rows["rows"] = rows_per_page
+                        if use_random and random_seed:
+                            params_with_rows["random"] = str(random_seed)
+                        params_with_rows["cursorMark"] = st.session_state.next_cursor
+
+                        result = fetch("/reviews", params_with_rows)
+                        if result and result.get("docs"):
+                            new_docs = result.get("docs", [])
+                            st.session_state.all_docs.extend(new_docs)
+                            st.session_state.next_cursor = result.get("nextCursorMark")
+                        else:
+                            break
+                    st.success("✅ Toutes les pages disponibles ont été chargées.")
+
             full_df = pd.json_normalize(st.session_state.all_docs)
             full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
             all_csv_full = full_df.to_csv(index=False)
@@ -523,6 +542,7 @@ def main():
                 st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name="all_reviews_export.csv", mime="text/csv")
             with colf2:
                 st.download_button("📄 Télécharger toutes les reviews (Excel)", excel_data_full, file_name="all_reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
