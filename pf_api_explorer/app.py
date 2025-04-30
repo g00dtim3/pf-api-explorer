@@ -359,7 +359,7 @@ def main():
         if "next_cursor" not in st.session_state:
             st.session_state.next_cursor = None
     
-        # ✅ Vérification d’export déjà réalisé ou plus large
+        # ✅ Vérification d’export déjà réalisé, englobant ou identique
         potential_duplicates = []
         if log_path.exists():
             try:
@@ -372,18 +372,18 @@ def main():
                 end = pd.to_datetime(str(params.get("end-date")))
     
                 for prod in product_names:
-                    dupes = export_log_df[
+                    overlapping = export_log_df[
                         (export_log_df["product"] == prod) &
-                        (export_log_df["start_date"] <= start) &
-                        (export_log_df["end_date"] >= end)
+                        (export_log_df["start_date"] <= end) &
+                        (export_log_df["end_date"] >= start)
                     ]
-                    if not dupes.empty:
+                    if not overlapping.empty:
                         potential_duplicates.append(prod)
             except Exception as e:
                 st.warning(f"Erreur de lecture du fichier log : {e}")
     
         if potential_duplicates:
-            st.warning(f"🚫 Les produits suivants ont déjà été exportés sur une période plus large : {', '.join(potential_duplicates)}")
+            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
     
         if st.button("📅 Lancer l’export des reviews"):
             # Réinitialiser la session
