@@ -359,19 +359,23 @@ def main():
         if "next_cursor" not in st.session_state:
             st.session_state.next_cursor = None
     
-        # ✅ Vérification d’export déjà réalisé
+        # ✅ Vérification d’export déjà réalisé ou plus large
         potential_duplicates = []
         if log_path.exists():
             try:
                 export_log_df = pd.read_csv(log_path)
+                export_log_df["start_date"] = pd.to_datetime(export_log_df["start_date"])
+                export_log_df["end_date"] = pd.to_datetime(export_log_df["end_date"])
+    
                 product_names = params.get("product", "").split(",")
-                start = str(params.get("start-date"))
-                end = str(params.get("end-date"))
+                start = pd.to_datetime(str(params.get("start-date")))
+                end = pd.to_datetime(str(params.get("end-date")))
+    
                 for prod in product_names:
                     dupes = export_log_df[
                         (export_log_df["product"] == prod) &
-                        (export_log_df["start_date"] == start) &
-                        (export_log_df["end_date"] == end)
+                        (export_log_df["start_date"] <= start) &
+                        (export_log_df["end_date"] >= end)
                     ]
                     if not dupes.empty:
                         potential_duplicates.append(prod)
@@ -379,7 +383,7 @@ def main():
                 st.warning(f"Erreur de lecture du fichier log : {e}")
     
         if potential_duplicates:
-            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour cette période : {', '.join(potential_duplicates)}")
+            st.warning(f"🚫 Les produits suivants ont déjà été exportés sur une période plus large : {', '.join(potential_duplicates)}")
     
         if st.button("📅 Lancer l’export des reviews"):
             # Réinitialiser la session
