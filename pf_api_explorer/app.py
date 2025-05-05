@@ -384,20 +384,6 @@ def main():
     
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
-
-        # 🔄 Construction complète des paramètres API avant export
-        params["start-date"] = filters["start_date"].strftime("%Y-%m-%d")
-        params["end-date"] = filters["end_date"].strftime("%Y-%m-%d")
-        if filters["category"] != "ALL":
-            params["category"] = filters["category"]
-        if filters["subcategory"] != "ALL":
-            params["subcategory"] = filters["subcategory"]
-        if filters["brand"]:
-            params["brand"] = ",".join(filters["brand"])
-        if filters["country"] and "ALL" not in filters["country"]:
-            params["country"] = ",".join(filters["country"])
-        if selected_products:
-            params["product"] = ",".join(selected_products)
     
         if st.button("📅 Lancer l’export des reviews"):
             # Réinitialiser la session
@@ -405,23 +391,25 @@ def main():
             st.session_state.current_page = 1
             st.session_state.all_docs = []
             st.session_state.next_cursor = None
-        
+    
             params_with_rows = params.copy()
             params_with_rows["rows"] = int(rows_per_page)
             if use_random and random_seed:
                 params_with_rows["random"] = str(random_seed)
-        
-            st.write("📤 Paramètres envoyés à l’API:", params_with_rows)  # debug visible
-        
-            with st.spinner("🔄 Chargement des reviews depuis l'API..."):
+    
+            metrics_result = fetch("/metrics", params)
+            total_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+    
+            if total_results == 0:
+                st.warning("Aucune review disponible pour cette combinaison")
+            else:
+                total_pages = (total_results + rows_per_page - 1) // rows_per_page
                 result = fetch("/reviews", params_with_rows)
+    
                 if result and result.get("docs"):
                     docs = result.get("docs", [])
                     st.session_state.all_docs = docs.copy()
                     st.session_state.next_cursor = result.get("nextCursorMark")
-                    st.success(f"✅ {len(docs)} reviews chargées avec succès.")
-                else:
-                    st.warning("Aucune donnée retournée par l’API.")
     
                     # 🔒 Génération du log d'export local (changer le chemin si besoin)
                     export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -442,7 +430,7 @@ def main():
                             "country": export_country,
                             "rows": rows_per_page,
                             "random_seed": random_seed if use_random else None,
-                            "nb_reviews": len(st.session_state.all_docs),
+                            "nb_reviews": len(docs),
                             "export_timestamp": export_date
                         })
     
@@ -463,40 +451,22 @@ def main():
             rows_per_page = int(rows_per_page)
             total_pages = (total_results + rows_per_page - 1) // rows_per_page
             current_page = st.session_state.current_page
-
+    
             start_idx = (current_page - 1) * rows_per_page
             end_idx = start_idx + rows_per_page
-
-            # Si la page suivante est demandée et non encore chargée
-            if end_idx > len(docs) and st.session_state.next_cursor:
-                params_with_rows = params.copy()
-                params_with_rows["rows"] = rows_per_page
-                if use_random and random_seed:
-                    params_with_rows["random"] = str(random_seed)
-                params_with_rows["cursorMark"] = st.session_state.next_cursor
-
-                result = fetch("/reviews", params_with_rows)
-                if result and result.get("docs"):
-                    new_docs = result.get("docs", [])
-                    st.session_state.all_docs.extend(new_docs)
-                    st.session_state.next_cursor = result.get("nextCursorMark")
-                    total_results = len(st.session_state.all_docs)
-                    total_pages = (total_results + rows_per_page - 1) // rows_per_page
-                    docs = st.session_state.all_docs  # refresh local ref
-
             page_docs = docs[start_idx:end_idx]
-
+    
             st.markdown(f"""
             ### 📋 Résultats
             - **Total stocké** : `{total_results}`
             - **Affichés sur cette page** : `{len(page_docs)}`
             - **Page actuelle** : `{current_page}` / environ `{total_pages}`
             """)
-
+    
             df = pd.json_normalize(page_docs)
             df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
             st.dataframe(df)
-
+    
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("⬅️ Page précédente") and st.session_state.current_page > 1:
@@ -504,43 +474,24 @@ def main():
             with col2:
                 if st.button("➡️ Page suivante") and st.session_state.current_page < total_pages:
                     st.session_state.current_page += 1
-
+    
             # Export de la page actuelle
             all_csv = df.to_csv(index=False)
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False)
             excel_data = excel_buffer.getvalue()
-
+    
             st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
             col1, col2 = st.columns(2)
             with col1:
                 st.download_button("📂 Télécharger en CSV", all_csv, file_name="reviews_export.csv", mime="text/csv")
             with col2:
                 st.download_button("📄 Télécharger en Excel", excel_data, file_name="reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
+    
             # Export de toutes les données stockées
             st.markdown("---")
             st.subheader("📦 Exporter toutes les pages")
-
-            if st.button("🔄 Charger toutes les pages depuis l'API"):
-                with st.spinner("Chargement de toutes les reviews..."):
-                    while st.session_state.next_cursor:
-                        params_with_rows = params.copy()
-                        params_with_rows["rows"] = rows_per_page
-                        if use_random and random_seed:
-                            params_with_rows["random"] = str(random_seed)
-                        params_with_rows["cursorMark"] = st.session_state.next_cursor
-
-                        result = fetch("/reviews", params_with_rows)
-                        if result and result.get("docs"):
-                            new_docs = result.get("docs", [])
-                            st.session_state.all_docs.extend(new_docs)
-                            st.session_state.next_cursor = result.get("nextCursorMark")
-                        else:
-                            break
-                    st.success("✅ Toutes les pages disponibles ont été chargées.")
-
             full_df = pd.json_normalize(st.session_state.all_docs)
             full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
             all_csv_full = full_df.to_csv(index=False)
@@ -548,13 +499,12 @@ def main():
             with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
                 full_df.to_excel(writer, index=False)
             excel_data_full = excel_buffer_full.getvalue()
-
+    
             colf1, colf2 = st.columns(2)
             with colf1:
                 st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name="all_reviews_export.csv", mime="text/csv")
             with colf2:
                 st.download_button("📄 Télécharger toutes les reviews (Excel)", excel_data_full, file_name="all_reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 
 
 
