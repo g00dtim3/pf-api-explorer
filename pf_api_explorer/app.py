@@ -427,9 +427,6 @@ def main():
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
     
-        if potential_duplicates:
-            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
-
         # Initialiser les variables de session si elles n'existent pas encore
         if 'is_preview_mode' not in st.session_state:
             st.session_state.is_preview_mode = True
@@ -442,8 +439,8 @@ def main():
         if 'switch_to_full_export' not in st.session_state:
             st.session_state.switch_to_full_export = False
         
-            # Ajouter des options pour l'aperçu et l'export complet
-            st.header("🔍 Options d'export")
+        # Ajouter des options pour l'aperçu et l'export complet
+        st.header("🔍 Options d'export")
             
             # Déterminer l'index du mode d'export (basé sur le mode actuel)
             export_mode_index = 0 if st.session_state.is_preview_mode else 1
