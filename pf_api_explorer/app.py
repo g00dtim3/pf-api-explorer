@@ -73,7 +73,98 @@ def fetch_attributes_dynamic(category, subcategory, brand):
 
 def fetch(endpoint, params=None):
     return fetch_cached(endpoint, params)
-    
+import ast  # à ajouter si pas déjà importé
+
+# ✅ Fonction de Postprocessing
+def postprocess_reviews(df):
+    df.rename(columns={'id':'guid','category':'categories','content trad':'verbatim_content','product':'product_name_SEMANTIWEB'}, inplace=True)
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        df['date'] = df['date'].dt.strftime('01/%m/%Y')
+
+    df['Sampling'] = df['business indicator'].apply(lambda x: 1 if 'Sampling Rate' in str(x) else 0)
+    df = df.drop(columns=['content origin'], errors='ignore')
+
+    predefined_attributes = [
+        'Composition', 'Efficiency', 'Packaging', 'Price', 
+        'Quality', 'Safety', 'Scent', 'Taste', 'Texture'
+    ]
+    attribute_columns = {attr: f"attribute_{attr}" for attr in predefined_attributes}
+    for col_name in attribute_columns.values():
+        df[col_name] = '0'
+
+    pos_attributes_by_row = {}
+    neg_attributes_by_row = {}
+    all_attributes_by_row = {}
+
+    for idx, row in df.iterrows():
+        pos_attrs_set = set()
+        neg_attrs_set = set()
+        all_attrs_set = set()
+        if pd.notna(row.get('attributes')):
+            try:
+                all_attrs = ast.literal_eval(row['attributes'])
+                all_attrs_set = {attr for attr in all_attrs if attr in predefined_attributes}
+            except (ValueError, SyntaxError):
+                pass
+        if pd.notna(row.get('attributes positive')):
+            try:
+                pos_attrs = ast.literal_eval(row['attributes positive'])
+                pos_attrs_set = {attr for attr in pos_attrs if attr in predefined_attributes}
+            except (ValueError, SyntaxError):
+                pass
+        if pd.notna(row.get('attributes negative')):
+            try:
+                neg_attrs = ast.literal_eval(row['attributes negative'])
+                neg_attrs_set = {attr for attr in neg_attrs if attr in predefined_attributes}
+            except (ValueError, SyntaxError):
+                pass
+        pos_attributes_by_row[idx] = pos_attrs_set
+        neg_attributes_by_row[idx] = neg_attrs_set
+        all_attributes_by_row[idx] = all_attrs_set
+
+    for idx in all_attributes_by_row:
+        all_attrs = all_attributes_by_row[idx]
+        pos_attrs = pos_attributes_by_row[idx]
+        neg_attrs = neg_attributes_by_row[idx]
+        neutral_attrs = pos_attrs.intersection(neg_attrs)
+        only_pos_attrs = pos_attrs - neutral_attrs
+        only_neg_attrs = neg_attrs - neutral_attrs
+        implicit_neutral_attrs = all_attrs - pos_attrs - neg_attrs
+        for attr in neutral_attrs:
+            df.at[idx, attribute_columns[attr]] = 'neutre'
+        for attr in only_pos_attrs:
+            df.at[idx, attribute_columns[attr]] = 'positive'
+        for attr in only_neg_attrs:
+            df.at[idx, attribute_columns[attr]] = 'negative'
+        for attr in implicit_neutral_attrs:
+            df.at[idx, attribute_columns[attr]] = 'neutre'
+
+    original_columns = [col for col in df.columns if col not in ['attributes', 'attributes positive', 'attributes negative']]
+    original_columns = [col for col in original_columns if not col.startswith('attribute_')]
+
+    df['safety'] = '0'
+    for idx in all_attributes_by_row:
+        pos_attrs = pos_attributes_by_row[idx]
+        neg_attrs = neg_attributes_by_row[idx]
+        all_attrs = all_attributes_by_row[idx]
+        safety_attrs = {'Safety', 'Composition'}
+        safety_neutral = any(attr in (all_attrs - pos_attrs - neg_attrs) for attr in safety_attrs)
+        safety_positive = any(attr in pos_attrs for attr in safety_attrs)
+        safety_negative = any(attr in neg_attrs for attr in safety_attrs)
+        if safety_positive and safety_negative:
+            df.at[idx, 'safety'] = 'neutre'
+        elif safety_positive:
+            df.at[idx, 'safety'] = 'positive'
+        elif safety_negative:
+            df.at[idx, 'safety'] = 'negative'
+        elif safety_neutral:
+            df.at[idx, 'safety'] = 'neutre'
+
+    final_columns = original_columns + list(attribute_columns.values()) + ['safety']
+    return df[final_columns]
+
+
 # ✅ Fonction définie en dehors de main()
 def generate_export_filename(params, mode="complete", page=None, extension="csv"):
     filename_parts = ["reviews"]
@@ -689,12 +780,20 @@ def main():
                     excel_data = excel_buffer.getvalue()
                     
                     st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns(3)
                     with col1:
                         st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=page_csv_filename, mime="text/csv")
                     with col2:
                         st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=page_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    
+                    with col3:
+                        try:
+                            df_flat_page = postprocess_reviews(df.copy())
+                            flat_csv_page = df_flat_page.to_csv(index=False)
+                            flat_page_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="plat.csv")
+                            st.download_button("📃 Télécharger la page en format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
+                        except Exception as e:
+                            st.warning(f"Erreur format plat : {e}")
+
                     # Export de toutes les données stockées
                     st.markdown("---")
                     st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
@@ -716,12 +815,20 @@ def main():
                         full_df.to_excel(writer, index=False)
                     excel_data_full = excel_buffer_full.getvalue()
                     
-                    colf1, colf2 = st.columns(2)
+                    colf1, colf2, colf3 = st.columns(3)
                     with colf1:
                         st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
                     with colf2:
                         st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                
+                    with colf3:
+                        try:
+                            df_flat_full = postprocess_reviews(full_df.copy())
+                            flat_csv_full = df_flat_full.to_csv(index=False)
+                            flat_full_filename = generate_export_filename(export_params, mode="preview" if st.session_state.is_preview_mode else "complete", extension="plat.csv")
+                            st.download_button("📃 Télécharger les reviews en format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
+                        except Exception as e:
+                            st.warning(f"Erreur format plat : {e}")
+
 
 
 if __name__ == "__main__":
