@@ -502,7 +502,7 @@ def main():
                         
                     cursor_mark = "*"
                     all_docs = []
-                    page_count = 0
+                page_count = 0
                     
                  # Boucle pour récupérer les pages via cursor pagination
                 while True:
