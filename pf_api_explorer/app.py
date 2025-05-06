@@ -788,7 +788,7 @@ def main():
                     with col3:
                         try:
                             df_flat_page = postprocess_reviews(df.copy())
-                            flat_csv_page = df_flat_page.to_csv(index=False)
+                            flat_csv_page = df_flat_page.to_csv(index=False, encoding="utf-8-sig"))
                             flat_page_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="plat.csv")
                             st.download_button("📃 Télécharger le format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
                         except Exception as e:
@@ -808,7 +808,7 @@ def main():
                     
                     full_df = pd.json_normalize(st.session_state.all_docs)
                     full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                    all_csv_full = full_df.to_csv(index=False)
+                    all_csv_full = full_df.to_csv(index=False, encoding="utf-8-sig")
                     
                     excel_buffer_full = io.BytesIO()
                     with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
