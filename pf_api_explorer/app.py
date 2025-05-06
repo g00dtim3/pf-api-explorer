@@ -77,11 +77,11 @@ def fetch(endpoint, params=None):
 # ✅ Fonction définie en dehors de main()
 def generate_export_filename(params, mode="complete", page=None, extension="csv"):
     filename_parts = ["reviews"]
-    country = params.get("country", "").strip()
+    country = params.get("country", "").strip() if isinstance(params.get("country"), str) else ""
     if country:
         filename_parts.append(country.lower())
 
-    products = params.get("product", "").split(",")
+    products = params.get("product", "").split(",") if isinstance(params.get("product"), str) else []
     if products and products[0]:
         clean_products = []
         for p in products[:2]:
@@ -96,14 +96,20 @@ def generate_export_filename(params, mode="complete", page=None, extension="csv"
 
     start_date = params.get("start-date")
     end_date = params.get("end-date")
-    if start_date and end_date:
-        start_date_str = start_date.replace("-", "")
-        end_date_str = end_date.replace("-", "")
-        if start_date_str[:4] == end_date_str[:4]:
-            date_str = f"{start_date_str[:4]}_{start_date_str[4:8]}-{end_date_str[4:8]}"
-        else:
-            date_str = f"{start_date_str}-{end_date_str}"
-        filename_parts.append(date_str)
+    
+    # S'assurer que start_date et end_date sont des chaînes de caractères
+    if start_date is not None and end_date is not None:
+        # Convertir en chaîne si nécessaire (comme pour les objets datetime)
+        start_date_str = str(start_date).replace("-", "")
+        end_date_str = str(end_date).replace("-", "")
+        
+        # S'assurer que nous avons au moins 8 caractères pour un format de date
+        if len(start_date_str) >= 8 and len(end_date_str) >= 8:
+            if start_date_str[:4] == end_date_str[:4]:
+                date_str = f"{start_date_str[:4]}_{start_date_str[4:8]}-{end_date_str[4:8]}"
+            else:
+                date_str = f"{start_date_str}-{end_date_str}"
+            filename_parts.append(date_str)
 
     if mode == "preview":
         filename_parts.append("apercu")
