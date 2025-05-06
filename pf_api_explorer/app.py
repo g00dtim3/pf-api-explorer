@@ -386,218 +386,218 @@ def main():
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
     
         # Ajouter des options pour l'aperçu et l'export complet
-st.header("🔍 Options d'export")
-export_mode = st.radio(
-    "Mode d'export",
-    ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
-    index=0
-)
-
-preview_limit = 50  # Nombre maximum de reviews pour l'aperçu
-
-if st.button("📅 Lancer " + ("l'aperçu" if export_mode == "Aperçu rapide (50 reviews max)" else "l'export complet")):
-    # Réinitialiser la session
-    st.session_state.cursor_mark = "*"
-    st.session_state.current_page = 1
-    st.session_state.all_docs = []
-    st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
+    st.header("🔍 Options d'export")
+    export_mode = st.radio(
+        "Mode d'export",
+        ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
+        index=0
+    )
     
-    params_with_rows = params.copy()
+    preview_limit = 50  # Nombre maximum de reviews pour l'aperçu
     
-    # En mode aperçu, on limite le nombre de lignes
-    if st.session_state.is_preview_mode:
-        params_with_rows["rows"] = min(int(rows_per_page), preview_limit)
-    else:
-        params_with_rows["rows"] = int(rows_per_page)
-        
-    if use_random and random_seed:
-        params_with_rows["random"] = str(random_seed)
-    
-    metrics_result = fetch("/metrics", params)
-    total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
-    
-    if total_api_results == 0:
-        st.warning("Aucune review disponible pour cette combinaison")
-    else:
-        # En mode aperçu, ne récupérer qu'une page
-        if st.session_state.is_preview_mode:
-            expected_total_pages = 1
-            max_reviews = min(preview_limit, total_api_results)
-            st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
-        else:
-            # Calculer le nombre total de pages attendues pour l'export complet
-            expected_total_pages = (total_api_results + int(rows_per_page) - 1) // int(rows_per_page)
-            st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
-        
-        # Afficher une barre de progression
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        cursor_mark = "*"
-        all_docs = []
-        page_count = 0
-        
-        # Boucle pour récupérer les pages via cursor pagination
-        while True:
-            page_count += 1
-            status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
-            
-            # Ajouter le cursor_mark aux paramètres
-            current_params = params_with_rows.copy()
-            current_params["cursorMark"] = cursor_mark
-            
-            # Récupérer la page courante
-            result = fetch("/reviews", current_params)
-            
-            if not result or not result.get("docs"):
-                break
-                
-            # Ajouter les documents à notre collection
-            docs = result.get("docs", [])
-            all_docs.extend(docs)
-            
-            # Mettre à jour la barre de progression
-            progress_percent = min(page_count / expected_total_pages, 1.0)
-            progress_bar.progress(progress_percent)
-            
-            # En mode aperçu, on s'arrête après la première page
-            if st.session_state.is_preview_mode:
-                break
-                
-            # Vérifier si nous avons un nouveau cursor_mark
-            next_cursor = result.get("nextCursorMark")
-            
-            # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
-            if not next_cursor or next_cursor == cursor_mark:
-                break
-                
-            # Mise à jour du cursor pour la prochaine itération
-            cursor_mark = next_cursor
-            
-            # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
-            if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
-                break
-        
-        # Stocker tous les documents récupérés
-        st.session_state.all_docs = all_docs
-        
-        # 🔒 Génération du log d'export local (uniquement pour l'export complet)
-        if not st.session_state.is_preview_mode:
-            export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            export_country = params.get("country", "Tous")
-            
-            product_names = params.get("product", "").split(",")
-            brand_names = params.get("brand", "").split(",")
-            
-            log_entries = []
-            for product in product_names:
-                brand = next((b for b in brand_names if b.lower() in product.lower()), brand_names[0] if brand_names else "")
-                log_entries.append({
-                    "product": product,
-                    "brand": brand,
-                    "start_date": params.get("start-date"),
-                    "end_date": params.get("end-date"),
-                    "country": export_country,
-                    "rows": rows_per_page,
-                    "random_seed": random_seed if use_random else None,
-                    "nb_reviews": len(all_docs),
-                    "export_timestamp": export_date
-                })
-            
-            new_log_df = pd.DataFrame(log_entries)
-            if log_path.exists():
-                existing_log_df = pd.read_csv(log_path)
-                log_df = pd.concat([existing_log_df, new_log_df], ignore_index=True)
-            else:
-                log_df = new_log_df
-            log_df.to_csv(log_path, index=False)
-            
-            st.info("📝 Log d'export mis à jour dans 'review_exports_log.csv'")
-        
-        mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
-        status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
-
-# Affichage des reviews si dispo
-if hasattr(st.session_state, 'all_docs') and st.session_state.all_docs:
-    docs = st.session_state.all_docs
-    total_results = len(docs)
-    rows_per_page = int(rows_per_page)
-    total_pages = (total_results + rows_per_page - 1) // rows_per_page
-    
-    if not hasattr(st.session_state, 'current_page'):
+    if st.button("📅 Lancer " + ("l'aperçu" if export_mode == "Aperçu rapide (50 reviews max)" else "l'export complet")):
+        # Réinitialiser la session
+        st.session_state.cursor_mark = "*"
         st.session_state.current_page = 1
+        st.session_state.all_docs = []
+        st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
+        
+        params_with_rows = params.copy()
+        
+        # En mode aperçu, on limite le nombre de lignes
+        if st.session_state.is_preview_mode:
+            params_with_rows["rows"] = min(int(rows_per_page), preview_limit)
+        else:
+            params_with_rows["rows"] = int(rows_per_page)
+            
+        if use_random and random_seed:
+            params_with_rows["random"] = str(random_seed)
+        
+        metrics_result = fetch("/metrics", params)
+        total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+        
+        if total_api_results == 0:
+            st.warning("Aucune review disponible pour cette combinaison")
+        else:
+            # En mode aperçu, ne récupérer qu'une page
+            if st.session_state.is_preview_mode:
+                expected_total_pages = 1
+                max_reviews = min(preview_limit, total_api_results)
+                st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
+            else:
+                # Calculer le nombre total de pages attendues pour l'export complet
+                expected_total_pages = (total_api_results + int(rows_per_page) - 1) // int(rows_per_page)
+                st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
+            
+            # Afficher une barre de progression
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            cursor_mark = "*"
+            all_docs = []
+            page_count = 0
+            
+            # Boucle pour récupérer les pages via cursor pagination
+            while True:
+                page_count += 1
+                status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
+                
+                # Ajouter le cursor_mark aux paramètres
+                current_params = params_with_rows.copy()
+                current_params["cursorMark"] = cursor_mark
+                
+                # Récupérer la page courante
+                result = fetch("/reviews", current_params)
+                
+                if not result or not result.get("docs"):
+                    break
+                    
+                # Ajouter les documents à notre collection
+                docs = result.get("docs", [])
+                all_docs.extend(docs)
+                
+                # Mettre à jour la barre de progression
+                progress_percent = min(page_count / expected_total_pages, 1.0)
+                progress_bar.progress(progress_percent)
+                
+                # En mode aperçu, on s'arrête après la première page
+                if st.session_state.is_preview_mode:
+                    break
+                    
+                # Vérifier si nous avons un nouveau cursor_mark
+                next_cursor = result.get("nextCursorMark")
+                
+                # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
+                if not next_cursor or next_cursor == cursor_mark:
+                    break
+                    
+                # Mise à jour du cursor pour la prochaine itération
+                cursor_mark = next_cursor
+                
+                # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
+                if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
+                    break
+            
+            # Stocker tous les documents récupérés
+            st.session_state.all_docs = all_docs
+            
+            # 🔒 Génération du log d'export local (uniquement pour l'export complet)
+            if not st.session_state.is_preview_mode:
+                export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                export_country = params.get("country", "Tous")
+                
+                product_names = params.get("product", "").split(",")
+                brand_names = params.get("brand", "").split(",")
+                
+                log_entries = []
+                for product in product_names:
+                    brand = next((b for b in brand_names if b.lower() in product.lower()), brand_names[0] if brand_names else "")
+                    log_entries.append({
+                        "product": product,
+                        "brand": brand,
+                        "start_date": params.get("start-date"),
+                        "end_date": params.get("end-date"),
+                        "country": export_country,
+                        "rows": rows_per_page,
+                        "random_seed": random_seed if use_random else None,
+                        "nb_reviews": len(all_docs),
+                        "export_timestamp": export_date
+                    })
+                
+                new_log_df = pd.DataFrame(log_entries)
+                if log_path.exists():
+                    existing_log_df = pd.read_csv(log_path)
+                    log_df = pd.concat([existing_log_df, new_log_df], ignore_index=True)
+                else:
+                    log_df = new_log_df
+                log_df.to_csv(log_path, index=False)
+                
+                st.info("📝 Log d'export mis à jour dans 'review_exports_log.csv'")
+            
+            mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
+            status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
     
-    current_page = st.session_state.current_page
-    
-    start_idx = (current_page - 1) * rows_per_page
-    end_idx = min(start_idx + rows_per_page, total_results)
-    page_docs = docs[start_idx:end_idx]
-    
-    # Afficher un bandeau différent selon le mode
-    if hasattr(st.session_state, 'is_preview_mode') and st.session_state.is_preview_mode:
-        st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
-    
-    st.markdown(f"""
-    ### 📋 Résultats
-    - **Total récupéré** : `{total_results}`
-    - **Affichés sur cette page** : `{end_idx - start_idx}`
-    - **Page actuelle** : `{current_page}` / `{total_pages}`
-    """)
-    
-    df = pd.json_normalize(page_docs)
-    df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-    st.dataframe(df)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("⬅️ Page précédente") and st.session_state.current_page > 1:
-            st.session_state.current_page -= 1
-            st.experimental_rerun()
-    with col2:
-        if st.button("➡️ Page suivante") and st.session_state.current_page < total_pages:
-            st.session_state.current_page += 1
-            st.experimental_rerun()
-    
-    # Export de la page actuelle
-    all_csv = df.to_csv(index=False)
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-    excel_data = excel_buffer.getvalue()
-    
-    st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=f"reviews_export_page{current_page}.csv", mime="text/csv")
-    with col2:
-        st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=f"reviews_export_page{current_page}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
-    # Export de toutes les données stockées
-    st.markdown("---")
-    st.subheader("📦 Exporter toutes les pages")
-    full_df = pd.json_normalize(st.session_state.all_docs)
-    full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-    all_csv_full = full_df.to_csv(index=False)
-    excel_buffer_full = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
-        full_df.to_excel(writer, index=False)
-    excel_data_full = excel_buffer_full.getvalue()
-    
-    colf1, colf2 = st.columns(2)
-    with colf1:
-        st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name="all_reviews_export.csv", mime="text/csv")
-    with colf2:
-        st.download_button("📄 Télécharger toutes les reviews (Excel)", excel_data_full, file_name="all_reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
-    # Si on est en mode aperçu, proposer de passer à l'export complet
-    if hasattr(st.session_state, 'is_preview_mode') and st.session_state.is_preview_mode:
+    # Affichage des reviews si dispo
+    if hasattr(st.session_state, 'all_docs') and st.session_state.all_docs:
+        docs = st.session_state.all_docs
+        total_results = len(docs)
+        rows_per_page = int(rows_per_page)
+        total_pages = (total_results + rows_per_page - 1) // rows_per_page
+        
+        if not hasattr(st.session_state, 'current_page'):
+            st.session_state.current_page = 1
+        
+        current_page = st.session_state.current_page
+        
+        start_idx = (current_page - 1) * rows_per_page
+        end_idx = min(start_idx + rows_per_page, total_results)
+        page_docs = docs[start_idx:end_idx]
+        
+        # Afficher un bandeau différent selon le mode
+        if hasattr(st.session_state, 'is_preview_mode') and st.session_state.is_preview_mode:
+            st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
+        
+        st.markdown(f"""
+        ### 📋 Résultats
+        - **Total récupéré** : `{total_results}`
+        - **Affichés sur cette page** : `{end_idx - start_idx}`
+        - **Page actuelle** : `{current_page}` / `{total_pages}`
+        """)
+        
+        df = pd.json_normalize(page_docs)
+        df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        st.dataframe(df)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Page précédente") and st.session_state.current_page > 1:
+                st.session_state.current_page -= 1
+                st.experimental_rerun()
+        with col2:
+            if st.button("➡️ Page suivante") and st.session_state.current_page < total_pages:
+                st.session_state.current_page += 1
+                st.experimental_rerun()
+        
+        # Export de la page actuelle
+        all_csv = df.to_csv(index=False)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        excel_data = excel_buffer.getvalue()
+        
+        st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=f"reviews_export_page{current_page}.csv", mime="text/csv")
+        with col2:
+            st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=f"reviews_export_page{current_page}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        
+        # Export de toutes les données stockées
         st.markdown("---")
-        st.subheader("🚀 Passer à l'export complet")
-        if st.button("📊 Récupérer toutes les reviews disponibles"):
-            # Réinitialiser le mode et forcer l'export complet
-            st.session_state.is_preview_mode = False
-            # Rediriger vers le début de la page pour permettre l'export complet
-            st.experimental_rerun()
+        st.subheader("📦 Exporter toutes les pages")
+        full_df = pd.json_normalize(st.session_state.all_docs)
+        full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        all_csv_full = full_df.to_csv(index=False)
+        excel_buffer_full = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
+            full_df.to_excel(writer, index=False)
+        excel_data_full = excel_buffer_full.getvalue()
+        
+        colf1, colf2 = st.columns(2)
+        with colf1:
+            st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name="all_reviews_export.csv", mime="text/csv")
+        with colf2:
+            st.download_button("📄 Télécharger toutes les reviews (Excel)", excel_data_full, file_name="all_reviews_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        
+        # Si on est en mode aperçu, proposer de passer à l'export complet
+        if hasattr(st.session_state, 'is_preview_mode') and st.session_state.is_preview_mode:
+            st.markdown("---")
+            st.subheader("🚀 Passer à l'export complet")
+            if st.button("📊 Récupérer toutes les reviews disponibles"):
+                # Réinitialiser le mode et forcer l'export complet
+                st.session_state.is_preview_mode = False
+                # Rediriger vers le début de la page pour permettre l'export complet
+                st.experimental_rerun()
 
 
 
