@@ -450,10 +450,10 @@ def main():
             export_mode_index = 1
             st.session_state.switch_to_full_export = False  # Réinitialiser le flag
                 
-            export_mode = st.radio(
-                "Mode d'export",
-                ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
-                index=export_mode_index
+        export_mode = st.radio(
+            "Mode d'export",
+            ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
+            index=export_mode_index
             )
             
         # Mettre à jour le mode d'aperçu en fonction du choix utilisateur
