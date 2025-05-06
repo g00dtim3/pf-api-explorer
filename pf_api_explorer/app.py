@@ -499,70 +499,88 @@ def main():
                 
                 status_text = st.empty()                  # ✅ Toujours défini
             
-                # Afficher une barre de progression
-                progress_bar = st.progress(0) if not st.session_state.is_preview_mode else None  # ✅ Optionnel
+                # Afficher une barre de progression seulement en mode export complet
+                progress_bar = None if st.session_state.is_preview_mode else st.progress(0)
+                
                 cursor_mark = "*"
                 page_count = 0
                 all_docs = []
-
-                    
-                 # Boucle pour récupérer les pages via cursor pagination
-                while True:
-                    page_count += 1
-                    status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
+                
+                # Ajout d'un mécanisme de sécurité pour éviter les boucles infinies
+                max_iterations = min(100, expected_total_pages + 5)  # Limite raisonnable
+                
+                # Boucle pour récupérer les pages via cursor pagination
+                try:
+                    while page_count < max_iterations:
+                        page_count += 1
+                        status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
                         
-                    # Ajouter le cursor_mark aux paramètres
-                    current_params = params_with_rows.copy()
-                    current_params["cursorMark"] = cursor_mark
+                        # Ajouter le cursor_mark aux paramètres
+                        current_params = params_with_rows.copy()
+                        current_params["cursorMark"] = cursor_mark
                         
-                    # Récupérer la page courante
-                    result = fetch("/reviews", current_params)
+                        # Récupérer la page courante
+                        result = fetch("/reviews", current_params)
                         
-                    if not result or not result.get("docs"):
-                        break
+                        # Vérifier si le résultat est valide et contient des documents
+                        if not result or not result.get("docs") or len(result.get("docs", [])) == 0:
+                            break
                             
-                    # Ajouter les documents à notre collection
-                    docs = result.get("docs", [])
-                    all_docs.extend(docs)
+                        # Ajouter les documents à notre collection
+                        docs = result.get("docs", [])
+                        all_docs.extend(docs)
                         
-                    # Mettre à jour la barre de progression
-                    progress_percent = min(page_count / expected_total_pages, 1.0)
-                    progress_bar.progress(progress_percent)
+                        # Mettre à jour la barre de progression uniquement en mode export complet
+                        if progress_bar is not None:
+                            progress_percent = min(page_count / expected_total_pages, 1.0) if expected_total_pages > 0 else 1.0
+                            progress_bar.progress(progress_percent)
                         
-                    # En mode aperçu, on s'arrête après la première page
-                    if st.session_state.is_preview_mode:
-                        break
+                        # En mode aperçu, on s'arrête après la première page
+                        if st.session_state.is_preview_mode:
+                            break
                             
-                    # Vérifier si nous avons un nouveau cursor_mark
-                    next_cursor = result.get("nextCursorMark")
+                        # Vérifier si nous avons un nouveau cursor_mark
+                        next_cursor = result.get("nextCursorMark")
                         
-                    # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
-                    if not next_cursor or next_cursor == cursor_mark:
-                        break
+                        # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
+                        if not next_cursor or next_cursor == cursor_mark:
+                            break
                             
-                    # Mise à jour du cursor pour la prochaine itération
-                    cursor_mark = next_cursor
+                        # Mise à jour du cursor pour la prochaine itération
+                        cursor_mark = next_cursor
                         
-                    # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
-                    if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
-                        break
+                        # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
+                        if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
+                            break
+                            
+                except Exception as e:
+                    st.error(f"Erreur lors de la récupération des données: {str(e)}")
                     
-                    # Stocker tous les documents récupérés
-                    st.session_state.all_docs = all_docs
-                    
-                    # 🔒 Génération du log d'export local (uniquement pour l'export complet)
-                    if not st.session_state.is_preview_mode:
+                # Stocker tous les documents récupérés
+                st.session_state.all_docs = all_docs
+                
+                # 🔒 Génération du log d'export local (uniquement pour l'export complet)
+                if not st.session_state.is_preview_mode and all_docs:
+                    try:
                         export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         export_country = params.get("country", "Tous")
                         
-                        product_names = params.get("product", "").split(",")
-                        brand_names = params.get("brand", "").split(",")
+                        product_names = params.get("product", "").split(",") if params.get("product") else []
+                        brand_names = params.get("brand", "").split(",") if params.get("brand") else []
                         
                         log_entries = []
                         for product in product_names:
                             if not product.strip():
                                 continue
-                            brand = next((b for b in brand_names if b and b.lower() in product.lower()), brand_names[0] if brand_names and brand_names[0] else "")
+                            brand = ""
+                            if brand_names and brand_names[0]:
+                                for b in brand_names:
+                                    if b and b.lower() in product.lower():
+                                        brand = b
+                                        break
+                                if not brand and brand_names[0]:
+                                    brand = brand_names[0]
+                                    
                             log_entries.append({
                                 "product": product,
                                 "brand": brand,
@@ -585,10 +603,14 @@ def main():
                             log_df.to_csv(log_path, index=False)
                             
                             st.info("📝 Log d'export mis à jour dans 'review_exports_log.csv'")
-                    
-                    mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
+                    except Exception as e:
+                        st.warning(f"Erreur lors de la mise à jour du journal d'export: {str(e)}")
+                
+                mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
+                if all_docs:
                     status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
-            
+                else:
+                    status_text.text(f"⚠️ Aucune review récupérée. Vérifiez vos filtres.")
                 # Affichage des reviews si dispo
                 if st.session_state.all_docs:
                     docs = st.session_state.all_docs
