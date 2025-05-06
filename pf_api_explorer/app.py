@@ -704,10 +704,20 @@ if st.session_state.all_docs:
     
     # Export de toutes les données stockées
     st.markdown("---")
-    st.subheader("📦 Exporter toutes les pages")
+    st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
+    
+    if st.session_state.is_preview_mode:
+        st.info("⚠️ Vous êtes en mode aperçu. Ce téléchargement contient uniquement un échantillon limité des données (max 50 reviews).")
+    else:
+        st.success("✅ Ce téléchargement contient l'ensemble des reviews correspondant à vos filtres.")
+    
+    # Afficher le nom du fichier pour transparence
+    st.markdown(f"**Nom de fichier généré :** `{full_csv_filename}`")
+    
     full_df = pd.json_normalize(st.session_state.all_docs)
     full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
     all_csv_full = full_df.to_csv(index=False)
+    
     excel_buffer_full = io.BytesIO()
     with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
         full_df.to_excel(writer, index=False)
@@ -715,21 +725,10 @@ if st.session_state.all_docs:
     
     colf1, colf2 = st.columns(2)
     with colf1:
-        st.download_button("📂 Télécharger toutes les reviews (CSV)", all_csv_full, file_name=full_csv_filename, mime="text/csv")
+        st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
     with colf2:
-        st.download_button("📄 Télécharger toutes les reviews (Excel)", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
-    # Si on est en mode aperçu, proposer de passer à l'export complet
-    if st.session_state.is_preview_mode:
-        st.markdown("---")
-        st.subheader("🚀 Passer à l'export complet")
-        
-        def switch_to_full_export():
-            st.session_state.is_preview_mode = False
-            st.session_state.switch_to_full_export = True
-            # Pas de experimental_rerun nécessaire ici car la page se recharge naturellement
-        
-        st.button("📊 Récupérer toutes les reviews disponibles", on_click=switch_to_full_export)
+        st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 if __name__ == "__main__":
