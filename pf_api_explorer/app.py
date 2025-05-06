@@ -790,7 +790,7 @@ def main():
                             df_flat_page = postprocess_reviews(df.copy())
                             flat_csv_page = df_flat_page.to_csv(index=False)
                             flat_page_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="plat.csv")
-                            st.download_button("📃 Télécharger la page en format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
+                            st.download_button("📃 Télécharger le format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
                         except Exception as e:
                             st.warning(f"Erreur format plat : {e}")
 
@@ -825,7 +825,7 @@ def main():
                             df_flat_full = postprocess_reviews(full_df.copy())
                             flat_csv_full = df_flat_full.to_csv(index=False)
                             flat_full_filename = generate_export_filename(export_params, mode="preview" if st.session_state.is_preview_mode else "complete", extension="plat.csv")
-                            st.download_button("📃 Télécharger les reviews en format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
+                            st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
                         except Exception as e:
                             st.warning(f"Erreur format plat : {e}")
 
