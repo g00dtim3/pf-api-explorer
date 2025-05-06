@@ -385,84 +385,70 @@ def main():
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
     
-       # Fonction pour générer un nom de fichier basé sur les filtres
-    def generate_export_filename(params, mode="complete", page=None, extension="csv"):
-        """
-        Génère un nom de fichier basé sur les paramètres de filtre
-        
-        Args:
-            params: Dictionnaire contenant les paramètres de filtrage
-            mode: Type d'export ('preview', 'page', 'complete')
-            page: Numéro de page (pour mode='page')
-            extension: Extension du fichier ('csv' ou 'xlsx')
-        
-        Returns:
-            Nom du fichier formaté avec les filtres
-        """
-        # Base du nom de fichier
-        filename_parts = ["reviews"]
-        
-        # Ajouter le pays s'il est spécifié
-        country = params.get("country", "").strip()
-        if country:
-            filename_parts.append(country.lower())
-    
+        if potential_duplicates:
+            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
+
+# Fonction pour générer un nom de fichier basé sur les filtres
+def generate_export_filename(params, mode="complete", page=None, extension="csv"):
+    """
+    Génère un nom de fichier basé sur les paramètres de filtre
+
+    Args:
+        params: Dictionnaire contenant les paramètres de filtrage
+        mode: Type d'export ('preview', 'page', 'complete')
+        page: Numéro de page (pour mode='page')
+        extension: Extension du fichier ('csv' ou 'xlsx')
+
+    Returns:
+        Nom du fichier formaté avec les filtres
+    """
+    filename_parts = ["reviews"]
+
+    # Ajouter le pays s'il est spécifié
+    country = params.get("country", "").strip()
+    if country:
+        filename_parts.append(country.lower())
+
     # Ajouter les produits (limité à 2 pour éviter des noms trop longs)
     products = params.get("product", "").split(",")
     if products and products[0]:
-        # Nettoyer et limiter la longueur des noms de produits
         clean_products = []
-        for p in products[:2]:  # Limiter à 2 produits maximum
-            # Simplifier le nom du produit pour le filename
-            clean_p = p.strip().lower()
-            clean_p = clean_p.replace(" ", "_").replace("/", "-")
-            # Limiter la longueur
+        for p in products[:2]:
+            clean_p = p.strip().lower().replace(" ", "_").replace("/", "-")
             if len(clean_p) > 15:
                 clean_p = clean_p[:15]
             clean_products.append(clean_p)
-        
         if clean_products:
             filename_parts.append("-".join(clean_products))
             if len(products) > 2:
-                filename_parts[-1] += "-plus"  # Indiquer s'il y a plus de produits
-    
+                filename_parts[-1] += "-plus"
+
     # Ajouter les dates
     start_date = params.get("start-date")
     end_date = params.get("end-date")
-    
     if start_date and end_date:
-        # Formater les dates en format compact
         start_date_str = start_date.replace("-", "")
         end_date_str = end_date.replace("-", "")
-        
-        # Si l'année est la même, ne pas répéter
         if start_date_str[:4] == end_date_str[:4]:
-            # Format: 2023_0101-0630 (pour jan-juin 2023)
             date_str = f"{start_date_str[:4]}_{start_date_str[4:8]}-{end_date_str[4:8]}"
         else:
-            # Format: 20220101-20230630 (pour différentes années)
             date_str = f"{start_date_str}-{end_date_str}"
-        
         filename_parts.append(date_str)
-    
+
     # Ajouter le mode d'export
     if mode == "preview":
         filename_parts.append("apercu")
     elif mode == "page":
         filename_parts.append(f"page{page}")
-    
-    # Joindre toutes les parties avec des underscores
-    filename = "_".join(filename_parts)
-    
-    # Ajouter l'extension
-    filename += f".{extension}"
-    
-    # S'assurer que le nom n'est pas trop long (limite à 100 caractères)
+
+    filename = "_".join(filename_parts) + f".{extension}"
+
     if len(filename) > 100:
         base, ext = filename.rsplit(".", 1)
         filename = base[:96] + "..." + "." + ext
-    
+
     return filename
+
 
 # Initialiser les variables de session si elles n'existent pas encore
 if 'is_preview_mode' not in st.session_state:
