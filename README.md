@@ -13,6 +13,26 @@ L'Explorateur API Ratings & Reviews est une application web développée avec St
 - Export de données au format CSV et Excel
 - Journalisation des exports pour éviter les duplications
 
+## 💻 Installation et prérequis
+
+### Dépendances requises
+
+L'application nécessite les bibliothèques Python suivantes, qui sont définies dans le fichier `requirements.txt` :
+
+```
+streamlit
+pandas
+requests
+openpyxl
+altair
+```
+
+Pour installer ces dépendances, exécutez la commande :
+
+```bash
+pip install -r requirements.txt
+```
+
 ## 🛠️ Guide d'utilisation
 
 ### 1. Configuration initiale
@@ -108,6 +128,20 @@ Les requêtes API sont mises en cache pendant une heure (`@st.cache_data(ttl=360
 
 L'application utilise un encodage strict des paramètres URL pour garantir la compatibilité avec l'API, notamment pour les caractères spéciaux.
 
+## 🚀 Démarrage de l'application
+
+Pour lancer l'application, exécutez la commande suivante dans le répertoire du projet :
+
+```bash
+streamlit run app.py
+```
+
+Si vous avez modifié le nom du fichier principal, remplacez `app.py` par le nom correct.
+
+Par défaut, l'application sera accessible à l'adresse http://localhost:8501 dans votre navigateur web.
+
+Pour un déploiement en production, consultez la [documentation officielle de Streamlit](https://docs.streamlit.io/knowledge-base/deploy).
+
 ## ⚠️ Limites et précautions
 
 - **Quotas API** : Surveillez votre consommation pour éviter d'atteindre les limites
@@ -124,6 +158,8 @@ L'application utilise un encodage strict des paramètres URL pour garantir la co
 | Aucun produit affiché | Élargissez vos critères de recherche ou vérifiez que les filtres ne sont pas trop restrictifs |
 | Export lent | Réduisez la plage de dates ou le nombre de produits sélectionnés |
 | Erreur de quota dépassé | Attendez le renouvellement de votre quota ou contactez votre administrateur API |
+| Erreur de module manquant | Vérifiez que toutes les dépendances sont installées avec `pip install -r requirements.txt` |
+| Problème d'accès au fichier journal | Vérifiez les permissions d'écriture dans le répertoire où le fichier log est sauvegardé |
 
 ## 📑 Structure du code
 
