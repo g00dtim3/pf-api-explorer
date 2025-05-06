@@ -624,111 +624,111 @@ if st.button("📅 Lancer " + ("l'aperçu" if st.session_state.is_preview_mode e
         mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
         status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
 
-# Affichage des reviews si dispo
-if st.session_state.all_docs:
-    docs = st.session_state.all_docs
-    total_results = len(docs)
-    rows_per_page = int(rows_per_page)
-    total_pages = max(1, (total_results + rows_per_page - 1) // rows_per_page)
+    # Affichage des reviews si dispo
+    if st.session_state.all_docs:
+        docs = st.session_state.all_docs
+        total_results = len(docs)
+        rows_per_page = int(rows_per_page)
+        total_pages = max(1, (total_results + rows_per_page - 1) // rows_per_page)
+        
+        # S'assurer que la page actuelle est dans les limites valides
+        if st.session_state.current_page > total_pages:
+            st.session_state.current_page = total_pages
+        if st.session_state.current_page < 1:
+            st.session_state.current_page = 1
+        
+        current_page = st.session_state.current_page
+        
+        start_idx = (current_page - 1) * rows_per_page
+        end_idx = min(start_idx + rows_per_page, total_results)
+        page_docs = docs[start_idx:end_idx]
+        
+        # Afficher un bandeau différent selon le mode
+        if st.session_state.is_preview_mode:
+            st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
+        
+        st.markdown(f"""
+        ### 📋 Résultats
+        - **Total récupéré** : `{total_results}`
+        - **Affichés sur cette page** : `{end_idx - start_idx}`
+        - **Page actuelle** : `{current_page}` / `{total_pages}`
+        """)
+        
+        df = pd.json_normalize(page_docs)
+        df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        st.dataframe(df)
+        
+        # Pagination avec gestion d'état par callbacks pour éviter les experimental_rerun
+        col1, col2 = st.columns(2)
+        
+        def prev_page():
+            if st.session_state.current_page > 1:
+                st.session_state.current_page -= 1
+        
+        def next_page():
+            if st.session_state.current_page < total_pages:
+                st.session_state.current_page += 1
+        
+        with col1:
+            st.button("⬅️ Page précédente", on_click=prev_page, disabled=current_page <= 1)
+        with col2:
+            st.button("➡️ Page suivante", on_click=next_page, disabled=current_page >= total_pages)
+        
+        # Utiliser les params stockés pour les noms de fichiers
+        export_params = st.session_state.export_params
+        
+        # Générer des noms de fichiers basés sur les filtres
+        page_csv_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="csv")
+        page_excel_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="xlsx")
+        
+        full_csv_filename = generate_export_filename(export_params, 
+                                                   mode="preview" if st.session_state.is_preview_mode else "complete", 
+                                                   extension="csv")
+        full_excel_filename = generate_export_filename(export_params, 
+                                                     mode="preview" if st.session_state.is_preview_mode else "complete", 
+                                                     extension="xlsx")
+        
+        # Export de la page actuelle
+        all_csv = df.to_csv(index=False)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        excel_data = excel_buffer.getvalue()
+        
+        st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=page_csv_filename, mime="text/csv")
+        with col2:
+            st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=page_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        
+        # Export de toutes les données stockées
+        st.markdown("---")
+        st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
+        
+        if st.session_state.is_preview_mode:
+            st.info("⚠️ Vous êtes en mode aperçu. Ce téléchargement contient uniquement un échantillon limité des données (max 50 reviews).")
+        else:
+            st.success("✅ Ce téléchargement contient l'ensemble des reviews correspondant à vos filtres.")
+        
+        # Afficher le nom du fichier pour transparence
+        st.markdown(f"**Nom de fichier généré :** `{full_csv_filename}`")
+        
+        full_df = pd.json_normalize(st.session_state.all_docs)
+        full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        all_csv_full = full_df.to_csv(index=False)
+        
+        excel_buffer_full = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
+            full_df.to_excel(writer, index=False)
+        excel_data_full = excel_buffer_full.getvalue()
+        
+        colf1, colf2 = st.columns(2)
+        with colf1:
+            st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
+        with colf2:
+            st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
-    # S'assurer que la page actuelle est dans les limites valides
-    if st.session_state.current_page > total_pages:
-        st.session_state.current_page = total_pages
-    if st.session_state.current_page < 1:
-        st.session_state.current_page = 1
-    
-    current_page = st.session_state.current_page
-    
-    start_idx = (current_page - 1) * rows_per_page
-    end_idx = min(start_idx + rows_per_page, total_results)
-    page_docs = docs[start_idx:end_idx]
-    
-    # Afficher un bandeau différent selon le mode
-    if st.session_state.is_preview_mode:
-        st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
-    
-    st.markdown(f"""
-    ### 📋 Résultats
-    - **Total récupéré** : `{total_results}`
-    - **Affichés sur cette page** : `{end_idx - start_idx}`
-    - **Page actuelle** : `{current_page}` / `{total_pages}`
-    """)
-    
-    df = pd.json_normalize(page_docs)
-    df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-    st.dataframe(df)
-    
-    # Pagination avec gestion d'état par callbacks pour éviter les experimental_rerun
-    col1, col2 = st.columns(2)
-    
-    def prev_page():
-        if st.session_state.current_page > 1:
-            st.session_state.current_page -= 1
-    
-    def next_page():
-        if st.session_state.current_page < total_pages:
-            st.session_state.current_page += 1
-    
-    with col1:
-        st.button("⬅️ Page précédente", on_click=prev_page, disabled=current_page <= 1)
-    with col2:
-        st.button("➡️ Page suivante", on_click=next_page, disabled=current_page >= total_pages)
-    
-    # Utiliser les params stockés pour les noms de fichiers
-    export_params = st.session_state.export_params
-    
-    # Générer des noms de fichiers basés sur les filtres
-    page_csv_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="csv")
-    page_excel_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="xlsx")
-    
-    full_csv_filename = generate_export_filename(export_params, 
-                                               mode="preview" if st.session_state.is_preview_mode else "complete", 
-                                               extension="csv")
-    full_excel_filename = generate_export_filename(export_params, 
-                                                 mode="preview" if st.session_state.is_preview_mode else "complete", 
-                                                 extension="xlsx")
-    
-    # Export de la page actuelle
-    all_csv = df.to_csv(index=False)
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-    excel_data = excel_buffer.getvalue()
-    
-    st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=page_csv_filename, mime="text/csv")
-    with col2:
-        st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=page_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
-    # Export de toutes les données stockées
-    st.markdown("---")
-    st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
-    
-    if st.session_state.is_preview_mode:
-        st.info("⚠️ Vous êtes en mode aperçu. Ce téléchargement contient uniquement un échantillon limité des données (max 50 reviews).")
-    else:
-        st.success("✅ Ce téléchargement contient l'ensemble des reviews correspondant à vos filtres.")
-    
-    # Afficher le nom du fichier pour transparence
-    st.markdown(f"**Nom de fichier généré :** `{full_csv_filename}`")
-    
-    full_df = pd.json_normalize(st.session_state.all_docs)
-    full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-    all_csv_full = full_df.to_csv(index=False)
-    
-    excel_buffer_full = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
-        full_df.to_excel(writer, index=False)
-    excel_data_full = excel_buffer_full.getvalue()
-    
-    colf1, colf2 = st.columns(2)
-    with colf1:
-        st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
-    with colf2:
-        st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 
 
 if __name__ == "__main__":
