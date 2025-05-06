@@ -496,12 +496,12 @@ def main():
                     expected_total_pages = (total_api_results + int(rows_per_page) - 1) // int(rows_per_page)
                     st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
                         
-                    # Afficher une barre de progression
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+                # Afficher une barre de progression
+                progress_bar = st.progress(0)
+                status_text = st.empty()
                         
-                    cursor_mark = "*"
-                    all_docs = []
+                cursor_mark = "*"
+                all_docs = []
                 page_count = 0
                     
                  # Boucle pour récupérer les pages via cursor pagination
