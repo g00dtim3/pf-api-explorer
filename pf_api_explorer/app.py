@@ -386,26 +386,26 @@ def main():
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
     
        # Fonction pour générer un nom de fichier basé sur les filtres
-def generate_export_filename(params, mode="complete", page=None, extension="csv"):
-    """
-    Génère un nom de fichier basé sur les paramètres de filtre
-    
-    Args:
-        params: Dictionnaire contenant les paramètres de filtrage
-        mode: Type d'export ('preview', 'page', 'complete')
-        page: Numéro de page (pour mode='page')
-        extension: Extension du fichier ('csv' ou 'xlsx')
-    
-    Returns:
-        Nom du fichier formaté avec les filtres
-    """
-    # Base du nom de fichier
-    filename_parts = ["reviews"]
-    
-    # Ajouter le pays s'il est spécifié
-    country = params.get("country", "").strip()
-    if country:
-        filename_parts.append(country.lower())
+    def generate_export_filename(params, mode="complete", page=None, extension="csv"):
+        """
+        Génère un nom de fichier basé sur les paramètres de filtre
+        
+        Args:
+            params: Dictionnaire contenant les paramètres de filtrage
+            mode: Type d'export ('preview', 'page', 'complete')
+            page: Numéro de page (pour mode='page')
+            extension: Extension du fichier ('csv' ou 'xlsx')
+        
+        Returns:
+            Nom du fichier formaté avec les filtres
+        """
+        # Base du nom de fichier
+        filename_parts = ["reviews"]
+        
+        # Ajouter le pays s'il est spécifié
+        country = params.get("country", "").strip()
+        if country:
+            filename_parts.append(country.lower())
     
     # Ajouter les produits (limité à 2 pour éviter des noms trop longs)
     products = params.get("product", "").split(",")
