@@ -6,6 +6,11 @@ import io
 import altair as alt
 import urllib.parse
 from functools import partial
+import accessibility_improvements as ai
+
+ai.add_accessibility_styles()
+ai.step_navigation(current_step=1)
+
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
