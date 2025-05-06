@@ -442,13 +442,13 @@ def main():
         # Ajouter des options pour l'aperçu et l'export complet
         st.header("🔍 Options d'export")
             
-            # Déterminer l'index du mode d'export (basé sur le mode actuel)
-            export_mode_index = 0 if st.session_state.is_preview_mode else 1
+        # Déterminer l'index du mode d'export (basé sur le mode actuel)
+        export_mode_index = 0 if st.session_state.is_preview_mode else 1
             
-            # Si l'utilisateur a demandé le passage en mode complet depuis l'aperçu
-            if st.session_state.switch_to_full_export:
-                export_mode_index = 1
-                st.session_state.switch_to_full_export = False  # Réinitialiser le flag
+        # Si l'utilisateur a demandé le passage en mode complet depuis l'aperçu
+        if st.session_state.switch_to_full_export:
+            export_mode_index = 1
+            st.session_state.switch_to_full_export = False  # Réinitialiser le flag
                 
             export_mode = st.radio(
                 "Mode d'export",
@@ -456,94 +456,94 @@ def main():
                 index=export_mode_index
             )
             
-            # Mettre à jour le mode d'aperçu en fonction du choix utilisateur
-            st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
+        # Mettre à jour le mode d'aperçu en fonction du choix utilisateur
+        st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
             
-            preview_limit = 50  # Nombre maximum de reviews pour l'aperçu
+        preview_limit = 50  # Nombre maximum de reviews pour l'aperçu
             
-            if st.button("📅 Lancer " + ("l'aperçu" if st.session_state.is_preview_mode else "l'export complet")):
-                # Réinitialiser la session pour le chargement
-                st.session_state.cursor_mark = "*"
-                st.session_state.current_page = 1
-                st.session_state.all_docs = []
-                # Le mode est déjà défini par le radio button
-                st.session_state.export_params = params.copy()  # Stocker les paramètres pour les noms de fichiers
+        if st.button("📅 Lancer " + ("l'aperçu" if st.session_state.is_preview_mode else "l'export complet")):
+            # Réinitialiser la session pour le chargement
+            st.session_state.cursor_mark = "*"
+            st.session_state.current_page = 1
+            st.session_state.all_docs = []
+            # Le mode est déjà défini par le radio button
+            st.session_state.export_params = params.copy()  # Stocker les paramètres pour les noms de fichiers
                 
-                params_with_rows = params.copy()
+            params_with_rows = params.copy()
                 
-                # En mode aperçu, on limite le nombre de lignes
-                if st.session_state.is_preview_mode:
-                    params_with_rows["rows"] = min(int(rows_per_page), preview_limit)
-                else:
-                    params_with_rows["rows"] = int(rows_per_page)
+            # En mode aperçu, on limite le nombre de lignes
+            if st.session_state.is_preview_mode:
+                params_with_rows["rows"] = min(int(rows_per_page), preview_limit)
+            else:
+                params_with_rows["rows"] = int(rows_per_page)
                     
-                if use_random and random_seed:
-                    params_with_rows["random"] = str(random_seed)
+            if use_random and random_seed:
+                params_with_rows["random"] = str(random_seed)
                 
-                metrics_result = fetch("/metrics", params)
-                total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+            metrics_result = fetch("/metrics", params)
+            total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
                 
-                if total_api_results == 0:
-                    st.warning("Aucune review disponible pour cette combinaison")
-                else:
-                    # En mode aperçu, ne récupérer qu'une page
+            if total_api_results == 0:
+                st.warning("Aucune review disponible pour cette combinaison")
+            else:
+            # En mode aperçu, ne récupérer qu'une page
+            if st.session_state.is_preview_mode:
+                expected_total_pages = 1
+                max_reviews = min(preview_limit, total_api_results)
+                st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
+            else:
+            # Calculer le nombre total de pages attendues pour l'export complet
+                expected_total_pages = (total_api_results + int(rows_per_page) - 1) // int(rows_per_page)
+                st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
+                    
+            # Afficher une barre de progression
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                    
+                cursor_mark = "*"
+                all_docs = []
+                page_count = 0
+                    
+                 # Boucle pour récupérer les pages via cursor pagination
+                while True:
+                    page_count += 1
+                    status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
+                        
+                    # Ajouter le cursor_mark aux paramètres
+                    current_params = params_with_rows.copy()
+                    current_params["cursorMark"] = cursor_mark
+                        
+                    # Récupérer la page courante
+                    result = fetch("/reviews", current_params)
+                        
+                    if not result or not result.get("docs"):
+                        break
+                            
+                    # Ajouter les documents à notre collection
+                    docs = result.get("docs", [])
+                    all_docs.extend(docs)
+                        
+                    # Mettre à jour la barre de progression
+                    progress_percent = min(page_count / expected_total_pages, 1.0)
+                    progress_bar.progress(progress_percent)
+                        
+                    # En mode aperçu, on s'arrête après la première page
                     if st.session_state.is_preview_mode:
-                        expected_total_pages = 1
-                        max_reviews = min(preview_limit, total_api_results)
-                        st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
-                    else:
-                        # Calculer le nombre total de pages attendues pour l'export complet
-                        expected_total_pages = (total_api_results + int(rows_per_page) - 1) // int(rows_per_page)
-                        st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
-                    
-                    # Afficher une barre de progression
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    cursor_mark = "*"
-                    all_docs = []
-                    page_count = 0
-                    
-                    # Boucle pour récupérer les pages via cursor pagination
-                    while True:
-                        page_count += 1
-                        status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
-                        
-                        # Ajouter le cursor_mark aux paramètres
-                        current_params = params_with_rows.copy()
-                        current_params["cursorMark"] = cursor_mark
-                        
-                        # Récupérer la page courante
-                        result = fetch("/reviews", current_params)
-                        
-                        if not result or not result.get("docs"):
-                            break
+                        break
                             
-                        # Ajouter les documents à notre collection
-                        docs = result.get("docs", [])
-                        all_docs.extend(docs)
+                    # Vérifier si nous avons un nouveau cursor_mark
+                    next_cursor = result.get("nextCursorMark")
                         
-                        # Mettre à jour la barre de progression
-                        progress_percent = min(page_count / expected_total_pages, 1.0)
-                        progress_bar.progress(progress_percent)
-                        
-                        # En mode aperçu, on s'arrête après la première page
-                        if st.session_state.is_preview_mode:
-                            break
+                    # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
+                    if not next_cursor or next_cursor == cursor_mark:
+                        break
                             
-                        # Vérifier si nous avons un nouveau cursor_mark
-                        next_cursor = result.get("nextCursorMark")
+                    # Mise à jour du cursor pour la prochaine itération
+                    cursor_mark = next_cursor
                         
-                        # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
-                        if not next_cursor or next_cursor == cursor_mark:
-                            break
-                            
-                        # Mise à jour du cursor pour la prochaine itération
-                        cursor_mark = next_cursor
-                        
-                        # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
-                        if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
-                            break
+                    # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
+                    if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
+                        break
                     
                     # Stocker tous les documents récupérés
                     st.session_state.all_docs = all_docs
