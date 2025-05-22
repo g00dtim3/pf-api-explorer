@@ -339,80 +339,35 @@ def main():
         if "selected_product_ids" not in st.session_state:
             st.session_state.selected_product_ids = []
         
-        # Initialiser l'état du chargement des avis
-        if "reviews_loaded" not in st.session_state:
-            st.session_state.reviews_loaded = False
-        
-        # Option pour afficher les contrôles de chargement d'avis
-        show_reviews_option = st.checkbox(
-            "📈 Afficher le nombre d'avis par produit", 
+        # Option pour charger le nombre d'avis
+        load_reviews_count = st.checkbox(
+            "📈 Charger le nombre d'avis par produit", 
             value=False,
-            help="Cochez pour voir les options de chargement du nombre d'avis"
+            help="Cette option peut prendre du temps à charger"
         )
         
         # Ajouter une recherche pour filtrer les produits
         search_text = st.text_input("🔍 Filtrer les produits")
         
-        # Gestion du chargement paresseux des avis
-        if show_reviews_option:
-            col1, col2, col3 = st.columns([2, 1, 1])
-            
-            with col1:
-                if not st.session_state.reviews_loaded:
-                    st.info("⏳ Le nombre d'avis n'a pas encore été chargé")
-                else:
-                    st.success("✅ Nombre d'avis chargé")
-            
-            with col2:
-                # Bouton pour charger les avis
-                if st.button("🔄 Charger les avis", disabled=st.session_state.reviews_loaded):
-                    with st.spinner("Récupération du nombre d'avis par produit..."):
-                        for i, row in enumerate(product_data):
-                            product_name = row["Produit"]
-                            brand_name = row["Marque"]
-                            product_params = {
-                                "product": product_name,
-                                "brand": brand_name,
-                                "start-date": filters["start_date"],
-                                "end-date": filters["end_date"]
-                            }
-                            metrics = fetch("/metrics", product_params)
-                            nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-                            product_data[i]["Nombre d'avis"] = nb_reviews
-                        
-                        st.session_state.reviews_loaded = True
-                        st.rerun()
-            
-            with col3:
-                # Bouton pour recharger les avis
-                if st.button("🔄 Recharger", disabled=not st.session_state.reviews_loaded):
-                    with st.spinner("Rechargement du nombre d'avis..."):
-                        for i, row in enumerate(product_data):
-                            product_name = row["Produit"]
-                            brand_name = row["Marque"]
-                            product_params = {
-                                "product": product_name,
-                                "brand": brand_name,
-                                "start-date": filters["start_date"],
-                                "end-date": filters["end_date"]
-                            }
-                            metrics = fetch("/metrics", product_params)
-                            nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-                            product_data[i]["Nombre d'avis"] = nb_reviews
-                        st.rerun()
-            
-            # Ajouter la colonne "Nombre d'avis" seulement si les avis sont chargés
-            if not st.session_state.reviews_loaded:
-                # Ajouter une colonne placeholder
+        # Récupérer le nombre d'avis par produit seulement si demandé
+        if load_reviews_count:
+            with st.spinner("Récupération du nombre d'avis par produit..."):
                 for i, row in enumerate(product_data):
-                    product_data[i]["Nombre d'avis"] = "Non chargé"
+                    product_name = row["Produit"]
+                    brand_name = row["Marque"]
+                    product_params = {
+                        "product": product_name,
+                        "brand": brand_name,
+                        "start-date": filters["start_date"],
+                        "end-date": filters["end_date"]
+                    }
+                    metrics = fetch("/metrics", product_params)
+                    nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
+                    product_data[i]["Nombre d'avis"] = nb_reviews
         else:
-            # Réinitialiser l'état si l'option n'est plus cochée
-            st.session_state.reviews_loaded = False
-            # Ne pas inclure la colonne "Nombre d'avis" du tout
-            for row in product_data:
-                if "Nombre d'avis" in row:
-                    del row["Nombre d'avis"]
+            # Ajouter une colonne vide ou un placeholder si pas de chargement
+            for i, row in enumerate(product_data):
+                product_data[i]["Nombre d'avis"] = "Non chargé"
         
         # Créer un DataFrame avec les données
         df_products = pd.DataFrame(product_data)
