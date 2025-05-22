@@ -321,7 +321,6 @@ def main():
 
     product_info = {}
     product_data = []
-
     if filters["brand"]:
         with st.spinner("Chargement des produits par marque..."):
             for i, b in enumerate(filters["brand"]):
@@ -332,7 +331,7 @@ def main():
                         label = f"{b} > {p}"
                         product_info[label] = p
                         product_data.append({"Marque": b, "Produit": p})
-
+    
     if product_data:
         st.subheader("📊 Produits disponibles")
         
@@ -340,23 +339,35 @@ def main():
         if "selected_product_ids" not in st.session_state:
             st.session_state.selected_product_ids = []
         
+        # Option pour charger le nombre d'avis
+        load_reviews_count = st.checkbox(
+            "📈 Charger le nombre d'avis par produit", 
+            value=False,
+            help="Cette option peut prendre du temps à charger"
+        )
+        
         # Ajouter une recherche pour filtrer les produits
         search_text = st.text_input("🔍 Filtrer les produits")
         
-        # Récupérer le nombre d'avis par produit
-        with st.spinner("Récupération du nombre d'avis par produit..."):
+        # Récupérer le nombre d'avis par produit seulement si demandé
+        if load_reviews_count:
+            with st.spinner("Récupération du nombre d'avis par produit..."):
+                for i, row in enumerate(product_data):
+                    product_name = row["Produit"]
+                    brand_name = row["Marque"]
+                    product_params = {
+                        "product": product_name,
+                        "brand": brand_name,
+                        "start-date": filters["start_date"],
+                        "end-date": filters["end_date"]
+                    }
+                    metrics = fetch("/metrics", product_params)
+                    nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
+                    product_data[i]["Nombre d'avis"] = nb_reviews
+        else:
+            # Ajouter une colonne vide ou un placeholder si pas de chargement
             for i, row in enumerate(product_data):
-                product_name = row["Produit"]
-                brand_name = row["Marque"]
-                product_params = {
-                    "product": product_name,
-                    "brand": brand_name,
-                    "start-date": filters["start_date"],
-                    "end-date": filters["end_date"]
-                }
-                metrics = fetch("/metrics", product_params)
-                nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-                product_data[i]["Nombre d'avis"] = nb_reviews
+                product_data[i]["Nombre d'avis"] = "Non chargé"
         
         # Créer un DataFrame avec les données
         df_products = pd.DataFrame(product_data)
