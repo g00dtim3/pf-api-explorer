@@ -62,6 +62,14 @@ def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
     return fetch_cached("/products", params)
 
 @st.cache_data(ttl=3600)
+def fetch_all_products_by_brand(brand):
+    params = {
+        "brand": brand,
+    }
+    return fetch_cached("/products", params)
+
+
+@st.cache_data(ttl=3600)
 def fetch_attributes_dynamic(category, subcategory, brand):
     params = {}
     if category != "ALL":
@@ -840,6 +848,39 @@ def main():
                             st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
                         except Exception as e:
                             st.warning(f"Erreur format plat : {e}")
+
+# 📋 Section : Produits disponibles pour chaque marque (sans filtres)
+st.markdown("---")
+st.header("📦 Liste complète des produits par marque")
+
+if st.checkbox("📋 Afficher tous les produits par marque"):
+    with st.spinner("Chargement de la liste complète..."):
+        all_brands_response = fetch("/brands")
+        brand_list = all_brands_response.get("brands", [])
+
+        @st.cache_data(ttl=3600)
+        def fetch_all_products_by_brand(brand):
+            return fetch_cached("/products", {"brand": brand})
+
+        all_product_rows = []
+        for i, brand in enumerate(brand_list):
+            st.write(f"🔍 {i+1}/{len(brand_list)} : {brand}")
+            products_data = fetch_all_products_by_brand(brand)
+            for product in products_data.get("products", []):
+                all_product_rows.append({"Marque": brand, "Produit": product})
+
+        if all_product_rows:
+            df_all_products = pd.DataFrame(all_product_rows)
+            st.dataframe(df_all_products)
+
+            st.download_button(
+                "⬇️ Télécharger la liste complète",
+                df_all_products.to_csv(index=False),
+                file_name="produits_par_marque.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("Aucun produit trouvé.")
 
 
 
