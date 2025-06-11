@@ -481,21 +481,23 @@ def main():
         with header_col4:
             st.write("**Nombre d'avis**")
 
-        # Checkbox pour sélectionner/désélectionner tous les produits visibles
-        select_all_key = "select_all_products"
-        select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key=select_all_key)
+        # Liste des IDs visibles à l'écran
+        visible_product_ids = set(filtered_df["Produit"].values)
         
         # Initialiser les modifications temporaires
         temp_selected = set(st.session_state.selected_product_ids)
         
-        # Pré-remplir tous les IDs visibles selon le filtre
-        visible_product_ids = set(filtered_df["Produit"].values)
+        # Gestion de la checkbox "Tout sélectionner"
+        select_all_key = "select_all_products"
+        select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key=select_all_key)
         
-        # Appliquer sélection/désélection globale
+        # Appliquer la sélection globale si l'utilisateur coche ou décoche
+        # (en fonction de la checkbox globale, on modifie la sélection *avant* les checkboxes ligne à ligne)
         if select_all:
             temp_selected.update(visible_product_ids)
         else:
             temp_selected.difference_update(visible_product_ids)
+
         
         # Stocker temporairement les modifications actuelles
         temp_selected = set(st.session_state.selected_product_ids)
@@ -513,15 +515,17 @@ def main():
             with col4:
                 st.write(f"{row['Nombre d\'avis']}")
             
-            # Mettre à jour la sélection temporaire
-            if is_selected:
-                temp_selected.add(product_id)
-            elif product_id in temp_selected:
-                temp_selected.remove(product_id)
+        # Recalculer la sélection après les choix manuels ligne par ligne
+        final_selected = []
+        for index, row in filtered_df.iterrows():
+            product_id = row["Produit"]
+            if st.session_state.get(f"check_{product_id}", False):
+                final_selected.append(product_id)
         
-        # Mettre à jour la liste des produits sélectionnés
-        st.session_state.selected_product_ids = list(temp_selected)
-        selected_products = st.session_state.selected_product_ids
+        # Mettre à jour l'état global
+        st.session_state.selected_product_ids = final_selected
+        selected_products = final_selected
+
         
         st.write("---")
         st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
