@@ -327,6 +327,51 @@ def main():
     st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
     st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
+    # 📋 Section : Produits par marque selon les filtres
+    st.markdown("---")
+    st.header("📦 Produits par marque selon les filtres appliqués")
+    
+    if st.checkbox("📋 Afficher les produits filtrés par marque"):
+        with st.spinner("Chargement des produits par marque avec les filtres..."):
+            product_rows = []
+    
+            # Parcours des marques filtrées
+            for i, brand in enumerate(filters["brand"]):
+                st.write(f"🔍 {i+1}/{len(filters['brand'])} : {brand}")
+                params = {
+                    "brand": brand,
+                    "start-date": filters["start_date"],
+                    "end-date": filters["end_date"]
+                }
+    
+                if filters["category"] != "ALL":
+                    params["category"] = filters["category"]
+                if filters["subcategory"] != "ALL":
+                    params["subcategory"] = filters["subcategory"]
+                if filters["country"] and "ALL" not in filters["country"]:
+                    params["country"] = ",".join(filters["country"])
+                if filters["source"] and "ALL" not in filters["source"]:
+                    params["source"] = ",".join(filters["source"])
+                if filters["market"] and "ALL" not in filters["market"]:
+                    params["market"] = ",".join(filters["market"])
+    
+                products_data = fetch_cached("/products", params)
+                for product in products_data.get("products", []):
+                    product_rows.append({"Marque": brand, "Produit": product})
+    
+            if product_rows:
+                df_filtered_products = pd.DataFrame(product_rows)
+                st.dataframe(df_filtered_products)
+    
+                st.download_button(
+                    "⬇️ Télécharger la liste filtrée",
+                    df_filtered_products.to_csv(index=False),
+                    file_name="produits_filtrés_par_marque.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.warning("Aucun produit trouvé avec ces filtres.")
+
     product_info = {}
     product_data = []
     if filters["brand"]:
