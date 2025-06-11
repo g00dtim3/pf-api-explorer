@@ -480,6 +480,22 @@ def main():
             st.write("**Produit**")
         with header_col4:
             st.write("**Nombre d'avis**")
+
+        # Checkbox pour sélectionner/désélectionner tous les produits visibles
+        select_all_key = "select_all_products"
+        select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key=select_all_key)
+        
+        # Initialiser les modifications temporaires
+        temp_selected = set(st.session_state.selected_product_ids)
+        
+        # Pré-remplir tous les IDs visibles selon le filtre
+        visible_product_ids = set(filtered_df["Produit"].values)
+        
+        # Appliquer sélection/désélection globale
+        if select_all:
+            temp_selected.update(visible_product_ids)
+        else:
+            temp_selected.difference_update(visible_product_ids)
         
         # Stocker temporairement les modifications actuelles
         temp_selected = set(st.session_state.selected_product_ids)
@@ -489,7 +505,7 @@ def main():
             product_id = row["Produit"]
             col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
             with col1:
-                is_selected = st.checkbox("", value=product_id in st.session_state.selected_product_ids, key=f"check_{product_id}")
+                is_selected = st.checkbox("", value=product_id in temp_selected, key=f"check_{product_id}")
             with col2:
                 st.write(row["Marque"])
             with col3:
