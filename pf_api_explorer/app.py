@@ -327,7 +327,7 @@ def main():
     st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
     st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
-    # 📋 Section : Produits par marque selon les filtres
+    # 📋 Section : Produits par marque selon les filtres appliqués
     st.markdown("---")
     st.header("📦 Produits par marque selon les filtres appliqués")
     
@@ -335,7 +335,9 @@ def main():
         with st.spinner("Chargement des produits par marque avec les filtres..."):
             product_rows = []
     
-            # Parcours des marques filtrées
+            # Option facultative pour afficher le nombre d'avis
+            load_reviews_count = st.checkbox("📈 Inclure le nombre d'avis par produit", value=False)
+    
             for i, brand in enumerate(filters["brand"]):
                 st.write(f"🔍 {i+1}/{len(filters['brand'])} : {brand}")
                 params = {
@@ -343,7 +345,6 @@ def main():
                     "start-date": filters["start_date"],
                     "end-date": filters["end_date"]
                 }
-    
                 if filters["category"] != "ALL":
                     params["category"] = filters["category"]
                 if filters["subcategory"] != "ALL":
@@ -355,9 +356,20 @@ def main():
                 if filters["market"] and "ALL" not in filters["market"]:
                     params["market"] = ",".join(filters["market"])
     
+                # Récupération des produits pour cette marque
                 products_data = fetch_cached("/products", params)
+    
                 for product in products_data.get("products", []):
-                    product_rows.append({"Marque": brand, "Produit": product})
+                    product_info = {"Marque": brand, "Produit": product}
+    
+                    if load_reviews_count:
+                        metric_params = params.copy()
+                        metric_params["product"] = product
+                        metrics = fetch("/metrics", metric_params)
+                        nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
+                        product_info["Nombre d'avis"] = nb_reviews
+    
+                    product_rows.append(product_info)
     
             if product_rows:
                 df_filtered_products = pd.DataFrame(product_rows)
