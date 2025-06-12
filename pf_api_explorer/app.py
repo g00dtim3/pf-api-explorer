@@ -498,6 +498,7 @@ def main():
         else:
             temp_selected.difference_update(visible_product_ids)
 
+
         
         # Stocker temporairement les modifications actuelles
         temp_selected = set(st.session_state.selected_product_ids)
