@@ -386,6 +386,7 @@ def main():
 
     product_info = {}
     product_data = []
+    selected_products = []  # ✅ Ajouté ici pour éviter UnboundLocalError
     if filters["brand"]:
         with st.spinner("Chargement des produits par marque..."):
             for i, b in enumerate(filters["brand"]):
@@ -396,8 +397,6 @@ def main():
                         label = f"{b} > {p}"
                         product_info[label] = p
                         product_data.append({"Marque": b, "Produit": p})
-    
-    selected_products = []
 
     if product_data:
         st.subheader("📊 Produits disponibles")
@@ -539,10 +538,11 @@ def main():
 
         
         st.write("---")
+        selected_products = st.session_state.selected_product_ids
         st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
     else:
         st.warning("Aucun produit disponible pour les filtres sélectionnés.")
-        selected_products = []
+        # selected_products = [] ← plus nécessaire ici car déjà défini
     
     st.markdown("---")
     st.subheader("Disponibilité des données")
