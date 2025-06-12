@@ -515,26 +515,26 @@ def main():
         # Créer un sélecteur pour chaque ligne
         for index, row in filtered_df.iterrows():
             product_id = row["Produit"]
-        col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
-        with col1:
-            is_selected = st.checkbox(
-                "", 
-                value=product_id in st.session_state.selected_product_ids,
-                key=f"check_{product_id}"
-            )
-        with col2:
-            st.write(row["Marque"])
-        with col3:
-            st.write(row["Produit"])
-        with col4:
-            st.write(f"{row['Nombre d\'avis']}")
+            
+            col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
+            with col1:
+                is_selected = st.checkbox(
+                    "", 
+                    value=product_id in st.session_state.selected_product_ids,
+                    key=f"check_{product_id}"
+                )
+            with col2:
+                st.write(row["Marque"])
+            with col3:
+                st.write(row["Produit"])
+            with col4:
+                st.write(f"{row['Nombre d\'avis']}")
         
-        # Mettre à jour à la volée
-        if is_selected and product_id not in st.session_state.selected_product_ids:
-            st.session_state.selected_product_ids.append(product_id)
-        elif not is_selected and product_id in st.session_state.selected_product_ids:
-            st.session_state.selected_product_ids.remove(product_id)
-
+            # Mettre à jour à la volée
+            if is_selected and product_id not in st.session_state.selected_product_ids:
+                st.session_state.selected_product_ids.append(product_id)
+            elif not is_selected and product_id in st.session_state.selected_product_ids:
+                st.session_state.selected_product_ids.remove(product_id)
 
         
         st.write("---")
