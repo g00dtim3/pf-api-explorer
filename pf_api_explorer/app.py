@@ -482,14 +482,14 @@ def main():
         with header_col4:
             st.write("**Nombre d'avis**")
 
-        # Liste des IDs visibles à l'écran
+        # 🔁 Liste des produits visibles à l'écran
         visible_product_ids = list(filtered_df["Produit"].values)
         
-        # Initialiser si nécessaire
+        # 🔁 Initialisation du state
         if "selected_product_ids" not in st.session_state:
             st.session_state.selected_product_ids = []
         
-        # Sélection groupée (affichage + actions)
+        # 🔘 Interface de sélection groupée
         col_sel_all, col_apply_sel, col_deselect_all = st.columns([1, 2, 2])
         with col_sel_all:
             select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key="select_all_toggle")
@@ -497,12 +497,10 @@ def main():
         with col_apply_sel:
             if st.button("🎯 Appliquer la sélection visible"):
                 if select_all:
-                    # Ajouter tous les produits affichés
                     for pid in visible_product_ids:
                         if pid not in st.session_state.selected_product_ids:
                             st.session_state.selected_product_ids.append(pid)
                 else:
-                    # Retirer tous les produits affichés
                     st.session_state.selected_product_ids = [
                         pid for pid in st.session_state.selected_product_ids if pid not in visible_product_ids
                     ]
@@ -511,8 +509,9 @@ def main():
             if st.button("❌ Tout désélectionner"):
                 st.session_state.selected_product_ids = []
 
+
         
-        # Créer un sélecteur pour chaque ligne
+        # 🔘 Affichage ligne par ligne avec checkbox
         for index, row in filtered_df.iterrows():
             product_id = row["Produit"]
             
@@ -521,7 +520,7 @@ def main():
                 is_selected = st.checkbox(
                     "", 
                     value=product_id in st.session_state.selected_product_ids,
-                    key=f"check_{product_id}"
+                    key=f"check_{index}_{product_id}"  # ✅ Clé unique
                 )
             with col2:
                 st.write(row["Marque"])
@@ -530,19 +529,22 @@ def main():
             with col4:
                 st.write(f"{row['Nombre d\'avis']}")
         
-            # Mettre à jour à la volée
+            # 🔄 Mise à jour à la volée
             if is_selected and product_id not in st.session_state.selected_product_ids:
                 st.session_state.selected_product_ids.append(product_id)
             elif not is_selected and product_id in st.session_state.selected_product_ids:
                 st.session_state.selected_product_ids.remove(product_id)
 
+
         
+        # 🧾 Résumé sélection
         st.write("---")
         selected_products = st.session_state.selected_product_ids
-        st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products) if selected_products else 'Aucun'}")
-    else:
-        st.warning("Aucun produit disponible pour les filtres sélectionnés.")
-        # selected_products = [] ← plus nécessaire ici car déjà défini
+        if selected_products:
+            st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products)}")
+        else:
+            st.write("**Aucun produit sélectionné.**")
+
     
     st.markdown("---")
     st.subheader("Disponibilité des données")
