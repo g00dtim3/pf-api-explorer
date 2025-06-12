@@ -397,6 +397,8 @@ def main():
                         product_info[label] = p
                         product_data.append({"Marque": b, "Produit": p})
     
+    selected_products = []
+
     if product_data:
         st.subheader("📊 Produits disponibles")
         
