@@ -565,11 +565,27 @@ def display_products_by_brand():
                     product_info = {"Marque": brand, "Produit": product}
 
                     if load_reviews_count:
-                        metric_params = params.copy()
-                        metric_params["product"] = product
-                        metrics = fetch("/metrics", metric_params)
-                        nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-                        product_info["Nombre d'avis"] = nb_reviews
+                        try:
+                            metric_params = params.copy()
+                            metric_params["product"] = product
+                            
+                            # Ajouter les filtres d'attributs si définis
+                            if filters["attributes"]:
+                                metric_params["attribute"] = ",".join(filters["attributes"])
+                            if filters["attributes_positive"]:
+                                metric_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                            if filters["attributes_negative"]:
+                                metric_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                            
+                            metrics = fetch("/metrics", metric_params)
+                            if metrics and isinstance(metrics, dict):
+                                nb_reviews = metrics.get("nbDocs", 0)
+                            else:
+                                nb_reviews = "Erreur API"
+                            product_info["Nombre d'avis"] = nb_reviews
+                        except Exception as e:
+                            st.warning(f"Erreur métrique pour {brand} - {product}: {str(e)}")
+                            product_info["Nombre d'avis"] = "Erreur"
 
                     product_rows.append(product_info)
 
@@ -619,18 +635,63 @@ def display_product_selection():
         # Récupérer le nombre d'avis par produit seulement si demandé
         if load_reviews_count:
             with st.spinner("Récupération du nombre d'avis par produit..."):
+                progress_container = st.container()
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
                 for i, row in enumerate(product_data):
                     product_name = row["Produit"]
                     brand_name = row["Marque"]
-                    product_params = {
-                        "product": product_name,
-                        "brand": brand_name,
-                        "start-date": filters["start_date"],
-                        "end-date": filters["end_date"]
-                    }
-                    metrics = fetch("/metrics", product_params)
-                    nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
-                    product_data[i]["Nombre d'avis"] = nb_reviews
+                    
+                    # Mise à jour du progress
+                    progress = (i + 1) / len(product_data)
+                    progress_bar.progress(progress)
+                    status_text.text(f"Chargement {i+1}/{len(product_data)}: {brand_name} - {product_name[:30]}...")
+                    
+                    try:
+                        # Construction des paramètres pour les métriques
+                        product_params = {
+                            "product": product_name,
+                            "brand": brand_name,
+                            "start-date": filters["start_date"],
+                            "end-date": filters["end_date"]
+                        }
+                        
+                        # Ajouter les autres filtres si définis
+                        if filters["category"] != "ALL":
+                            product_params["category"] = filters["category"]
+                        if filters["subcategory"] != "ALL":
+                            product_params["subcategory"] = filters["subcategory"]
+                        if filters["country"] and "ALL" not in filters["country"]:
+                            product_params["country"] = ",".join(filters["country"])
+                        if filters["source"] and "ALL" not in filters["source"]:
+                            product_params["source"] = ",".join(filters["source"])
+                        if filters["market"] and "ALL" not in filters["market"]:
+                            product_params["market"] = ",".join(filters["market"])
+                        if filters["attributes"]:
+                            product_params["attribute"] = ",".join(filters["attributes"])
+                        if filters["attributes_positive"]:
+                            product_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                        if filters["attributes_negative"]:
+                            product_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                        
+                        # Appel API pour les métriques
+                        metrics = fetch("/metrics", product_params)
+                        
+                        if metrics and isinstance(metrics, dict):
+                            nb_reviews = metrics.get("nbDocs", 0)
+                            product_data[i]["Nombre d'avis"] = nb_reviews
+                        else:
+                            product_data[i]["Nombre d'avis"] = "Erreur API"
+                            
+                    except Exception as e:
+                        st.warning(f"Erreur pour {brand_name} - {product_name}: {str(e)}")
+                        product_data[i]["Nombre d'avis"] = "Erreur"
+                
+                # Nettoyage de l'interface de progression
+                progress_bar.empty()
+                status_text.empty()
+                st.success(f"✅ Nombre d'avis chargé pour {len(product_data)} produits")
         else:
             for i, row in enumerate(product_data):
                 product_data[i]["Nombre d'avis"] = "Non chargé"
