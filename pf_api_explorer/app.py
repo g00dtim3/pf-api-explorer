@@ -602,61 +602,51 @@ def display_products_by_brand():
                 st.warning("Aucun produit trouvé avec ces filtres.")
 
 def display_product_selection():
-    """Affiche la sélection de produits avec interface interactive"""
+    """Affiche la sélection de produits avec interface interactive - 3 étapes simples"""
     filters = st.session_state.filters
     
-    # Étape 1: Chargement initial de la liste des produits
-    if "product_list_loaded" not in st.session_state:
-        st.session_state.product_list_loaded = False
+    st.subheader("📊 Gestion des produits")
+    
+    # Initialisation simple des variables de session
     if "product_data_cache" not in st.session_state:
         st.session_state.product_data_cache = []
+    if "product_list_loaded" not in st.session_state:
+        st.session_state.product_list_loaded = False
+    if "reviews_counts_loaded" not in st.session_state:
+        st.session_state.reviews_counts_loaded = False
     
-    st.subheader("📊 Chargement des produits")
-    
-    # Interface de chargement de la liste des produits
-    if not st.session_state.product_list_loaded:
-        st.info("📋 La liste des produits n'est pas encore chargée")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📦 Charger la liste des produits", key="load_product_list"):
+    # ÉTAPE 1: Chargement de la liste des produits
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📦 Étape 1: Liste des produits")
+        if not st.session_state.product_list_loaded:
+            if st.button("📦 Charger la liste des produits", key="load_products"):
                 load_product_list(filters)
-        with col2:
-            st.markdown("**ℹ️ Chargement basique** (noms uniquement)")
-    else:
-        # Liste déjà chargée
-        st.success(f"✅ Liste chargée : {len(st.session_state.product_data_cache)} produits")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 Recharger la liste", key="reload_product_list"):
+        else:
+            st.success(f"✅ {len(st.session_state.product_data_cache)} produits chargés")
+            if st.button("🔄 Recharger liste", key="reload_products"):
                 st.session_state.product_list_loaded = False
+                st.session_state.reviews_counts_loaded = False
                 st.session_state.product_data_cache = []
                 st.rerun()
-        with col2:
-            # Étape 2: Options pour les métriques
-            st.markdown("### 📈 Compteurs d'avis")
-            
-            if "reviews_counts_loaded" not in st.session_state:
-                st.session_state.reviews_counts_loaded = False
-            
+    
+    # ÉTAPE 2: Chargement des compteurs (optionnel)
+    with col2:
+        st.markdown("### 📊 Étape 2: Compteurs d'avis (optionnel)")
+        if st.session_state.product_list_loaded:
             if not st.session_state.reviews_counts_loaded:
-                if st.button("📊 Charger les compteurs d'avis", key="load_reviews_counts"):
+                if st.button("📊 Charger les compteurs", key="load_counts"):
                     load_reviews_counts(filters)
             else:
-                col2a, col2b = st.columns(2)
-                with col2a:
-                    if st.button("🔄 Recharger compteurs", key="reload_reviews_counts"):
-                        load_reviews_counts(filters)
-                with col2b:
-                    if st.button("❌ Masquer compteurs", key="hide_reviews_counts"):
-                        st.session_state.reviews_counts_loaded = False
-                        # Réinitialiser les compteurs
-                        for i, row in enumerate(st.session_state.product_data_cache):
-                            st.session_state.product_data_cache[i]["Nombre d'avis"] = "Non chargé"
+                st.success("✅ Compteurs chargés")
+                if st.button("🔄 Recharger compteurs", key="reload_counts"):
+                    load_reviews_counts(filters)
+        else:
+            st.info("Chargez d'abord la liste des produits")
     
-    # Affichage et sélection des produits si la liste est chargée
+    # ÉTAPE 3: Sélection des produits
     if st.session_state.product_list_loaded and st.session_state.product_data_cache:
+        st.markdown("### 🎯 Étape 3: Sélection des produits")
         display_product_table()
         return st.session_state.selected_product_ids
     
