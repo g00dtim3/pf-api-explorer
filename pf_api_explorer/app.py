@@ -604,208 +604,305 @@ def display_products_by_brand():
 def display_product_selection():
     """Affiche la sélection de produits avec interface interactive"""
     filters = st.session_state.filters
-    product_info = {}
-    product_data = []
     
-    if filters["brand"]:
-        with st.spinner("Chargement des produits par marque..."):
-            for i, b in enumerate(filters["brand"]):
-                st.write(f"🔎 {i+1}/{len(filters['brand'])} : {b}")
-                products = fetch_products_by_brand(b, filters["category"], filters["subcategory"], 
-                                                 filters["start_date"], filters["end_date"])
-                if products and products.get("products"):
-                    for p in products["products"]:
-                        label = f"{b} > {p}"
-                        product_info[label] = p
-                        product_data.append({"Marque": b, "Produit": p})
-
-    if product_data:
-        st.subheader("📊 Produits disponibles")
+    # Étape 1: Chargement initial de la liste des produits
+    if "product_list_loaded" not in st.session_state:
+        st.session_state.product_list_loaded = False
+    if "product_data_cache" not in st.session_state:
+        st.session_state.product_data_cache = []
+    
+    st.subheader("📊 Chargement des produits")
+    
+    # Interface de chargement de la liste des produits
+    if not st.session_state.product_list_loaded:
+        st.info("📋 La liste des produits n'est pas encore chargée")
         
-        # Option pour charger le nombre d'avis - AVANT la logique de chargement
-        load_reviews_count = st.checkbox(
-            "📈 Charger le nombre d'avis par produit", 
-            value=False,
-            help="Cette option peut prendre du temps à charger",
-            key="load_reviews_checkbox"
-        )
-        
-        # Ajouter une recherche pour filtrer les produits
-        search_text = st.text_input("🔍 Filtrer les produits", key="product_search")
-        
-        # Récupérer le nombre d'avis par produit seulement si demandé
-        if load_reviews_count:
-            # Vérifier si on a déjà chargé les données pour éviter les rechargements inutiles
-            if "reviews_count_loaded" not in st.session_state:
-                st.session_state.reviews_count_loaded = False
-            
-            if not st.session_state.reviews_count_loaded or st.button("🔄 Recharger les compteurs d'avis", key="reload_counts"):
-                with st.spinner("Récupération du nombre d'avis par produit..."):
-                    progress_container = st.container()
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    for i, row in enumerate(product_data):
-                        product_name = row["Produit"]
-                        brand_name = row["Marque"]
-                        
-                        # Mise à jour du progress
-                        progress = (i + 1) / len(product_data)
-                        progress_bar.progress(progress)
-                        status_text.text(f"Chargement {i+1}/{len(product_data)}: {brand_name} - {product_name[:30]}...")
-                        
-                        try:
-                            # Construction des paramètres pour les métriques
-                            product_params = {
-                                "product": product_name,
-                                "brand": brand_name,
-                                "start-date": filters["start_date"],
-                                "end-date": filters["end_date"]
-                            }
-                            
-                            # Ajouter les autres filtres si définis
-                            if filters["category"] != "ALL":
-                                product_params["category"] = filters["category"]
-                            if filters["subcategory"] != "ALL":
-                                product_params["subcategory"] = filters["subcategory"]
-                            if filters["country"] and "ALL" not in filters["country"]:
-                                product_params["country"] = ",".join(filters["country"])
-                            if filters["source"] and "ALL" not in filters["source"]:
-                                product_params["source"] = ",".join(filters["source"])
-                            if filters["market"] and "ALL" not in filters["market"]:
-                                product_params["market"] = ",".join(filters["market"])
-                            if filters["attributes"]:
-                                product_params["attribute"] = ",".join(filters["attributes"])
-                            if filters["attributes_positive"]:
-                                product_params["attribute-positive"] = ",".join(filters["attributes_positive"])
-                            if filters["attributes_negative"]:
-                                product_params["attribute-negative"] = ",".join(filters["attributes_negative"])
-                            
-                            # Appel API pour les métriques
-                            metrics = fetch("/metrics", product_params)
-                            
-                            if metrics and isinstance(metrics, dict):
-                                nb_reviews = metrics.get("nbDocs", 0)
-                                product_data[i]["Nombre d'avis"] = nb_reviews
-                            else:
-                                product_data[i]["Nombre d'avis"] = "Erreur API"
-                                
-                        except Exception as e:
-                            st.warning(f"Erreur pour {brand_name} - {product_name}: {str(e)}")
-                            product_data[i]["Nombre d'avis"] = "Erreur"
-                    
-                    # Nettoyage de l'interface de progression
-                    progress_bar.empty()
-                    status_text.empty()
-                    st.success(f"✅ Nombre d'avis chargé pour {len(product_data)} produits")
-                    st.session_state.reviews_count_loaded = True
-        else:
-            # Réinitialiser le flag si l'option est décochée
-            st.session_state.reviews_count_loaded = False
-            for i, row in enumerate(product_data):
-                product_data[i]["Nombre d'avis"] = "Non chargé"
-        
-        # Créer un DataFrame avec les données
-        df_products = pd.DataFrame(product_data)
-        
-        # Filtrer selon la recherche
-        if search_text:
-            mask = df_products["Produit"].str.contains(search_text, case=False) | df_products["Marque"].str.contains(search_text, case=False)
-            filtered_df = df_products[mask]
-        else:
-            filtered_df = df_products
-        
-        # Boutons de tri
-        col1, col2, col3 = st.columns([2, 2, 2])
+        col1, col2 = st.columns(2)
         with col1:
-            if st.button("Trier par marque"):
-                st.session_state.sort_column = "Marque"
-                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Marque" else True
+            if st.button("📦 Charger la liste des produits", key="load_product_list"):
+                load_product_list(filters)
         with col2:
-            if st.button("Trier par produit"):
-                st.session_state.sort_column = "Produit"
-                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Produit" else True
-        with col3:
-            if st.button("Trier par nb d'avis"):
-                st.session_state.sort_column = "Nombre d'avis"
-                st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Nombre d'avis" else False
+            st.markdown("**ℹ️ Chargement basique** (noms uniquement)")
+    else:
+        # Liste déjà chargée
+        st.success(f"✅ Liste chargée : {len(st.session_state.product_data_cache)} produits")
         
-        # Appliquer le tri
-        if st.session_state.sort_column in filtered_df.columns:
-            filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
-        
-        # Afficher le tableau avec les cases à cocher
-        st.write(f"Nombre de produits: {len(filtered_df)} | Tri actuel: {st.session_state.sort_column} ({'croissant' if st.session_state.sort_ascending else 'décroissant'})")
-        
-        # En-têtes du tableau
-        header_col1, header_col2, header_col3, header_col4 = st.columns([0.5, 2, 2, 1])
-        with header_col1:
-            st.write("**Sélect.**")
-        with header_col2:
-            st.write("**Marque**")
-        with header_col3:
-            st.write("**Produit**")
-        with header_col4:
-            st.write("**Nombre d'avis**")
-
-        # Liste des produits visibles à l'écran
-        visible_product_ids = list(filtered_df["Produit"].values)
-        
-        # Interface de sélection groupée
-        col_sel_all, col_apply_sel, col_deselect_all = st.columns([1, 2, 2])
-        with col_sel_all:
-            select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key="select_all_toggle")
-        
-        with col_apply_sel:
-            if st.button("🎯 Appliquer la sélection visible"):
-                if select_all:
-                    for pid in visible_product_ids:
-                        if pid not in st.session_state.selected_product_ids:
-                            st.session_state.selected_product_ids.append(pid)
-                else:
-                    st.session_state.selected_product_ids = [
-                        pid for pid in st.session_state.selected_product_ids if pid not in visible_product_ids
-                    ]
-        
-        with col_deselect_all:
-            if st.button("❌ Tout désélectionner"):
-                st.session_state.selected_product_ids = []
-
-        # Affichage ligne par ligne avec checkbox
-        for index, row in filtered_df.iterrows():
-            product_id = row["Produit"]
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Recharger la liste", key="reload_product_list"):
+                st.session_state.product_list_loaded = False
+                st.session_state.product_data_cache = []
+                st.rerun()
+        with col2:
+            # Étape 2: Options pour les métriques
+            st.markdown("### 📈 Compteurs d'avis")
             
-            col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
-            with col1:
-                is_selected = st.checkbox(
-                    "", 
-                    value=product_id in st.session_state.selected_product_ids,
-                    key=f"check_{index}_{product_id}"
-                )
-            with col2:
-                st.write(row["Marque"])
-            with col3:
-                st.write(row["Produit"])
-            with col4:
-                st.write(f"{row['Nombre d\'avis']}")
-        
-            # Mise à jour à la volée
-            if is_selected and product_id not in st.session_state.selected_product_ids:
-                st.session_state.selected_product_ids.append(product_id)
-            elif not is_selected and product_id in st.session_state.selected_product_ids:
-                st.session_state.selected_product_ids.remove(product_id)
-
-        # Résumé sélection
-        st.write("---")
-        selected_products = st.session_state.selected_product_ids
-        if selected_products:
-            st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products)}")
-        else:
-            st.write("**Aucun produit sélectionné.**")
+            if "reviews_counts_loaded" not in st.session_state:
+                st.session_state.reviews_counts_loaded = False
             
-        return selected_products
+            if not st.session_state.reviews_counts_loaded:
+                if st.button("📊 Charger les compteurs d'avis", key="load_reviews_counts"):
+                    load_reviews_counts(filters)
+            else:
+                col2a, col2b = st.columns(2)
+                with col2a:
+                    if st.button("🔄 Recharger compteurs", key="reload_reviews_counts"):
+                        load_reviews_counts(filters)
+                with col2b:
+                    if st.button("❌ Masquer compteurs", key="hide_reviews_counts"):
+                        st.session_state.reviews_counts_loaded = False
+                        # Réinitialiser les compteurs
+                        for i, row in enumerate(st.session_state.product_data_cache):
+                            st.session_state.product_data_cache[i]["Nombre d'avis"] = "Non chargé"
+    
+    # Affichage et sélection des produits si la liste est chargée
+    if st.session_state.product_list_loaded and st.session_state.product_data_cache:
+        display_product_table()
+        return st.session_state.selected_product_ids
     
     return []
+
+def load_product_list(filters):
+    """Charge la liste des produits sans les métriques"""
+    product_data = []
+    
+    if not filters.get("brand"):
+        st.error("❌ Aucune marque sélectionnée")
+        return
+    
+    with st.spinner("Chargement de la liste des produits..."):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for i, brand in enumerate(filters["brand"]):
+            progress = (i + 1) / len(filters["brand"])
+            progress_bar.progress(progress)
+            status_text.text(f"Chargement marque {i+1}/{len(filters['brand'])}: {brand}")
+            
+            try:
+                products = fetch_products_by_brand(
+                    brand, 
+                    filters["category"], 
+                    filters["subcategory"], 
+                    filters["start_date"], 
+                    filters["end_date"]
+                )
+                
+                if products and products.get("products"):
+                    for product in products["products"]:
+                        product_data.append({
+                            "Marque": brand, 
+                            "Produit": product,
+                            "Nombre d'avis": "Non chargé"
+                        })
+            except Exception as e:
+                st.warning(f"Erreur pour la marque {brand}: {str(e)}")
+        
+        progress_bar.empty()
+        status_text.empty()
+    
+    if product_data:
+        st.session_state.product_data_cache = product_data
+        st.session_state.product_list_loaded = True
+        st.session_state.reviews_counts_loaded = False
+        st.success(f"✅ {len(product_data)} produits chargés")
+        st.rerun()
+    else:
+        st.error("❌ Aucun produit trouvé")
+
+def load_reviews_counts(filters):
+    """Charge les compteurs d'avis pour les produits déjà en cache"""
+    if not st.session_state.product_data_cache:
+        st.error("❌ Liste des produits non chargée")
+        return
+    
+    with st.spinner("Chargement des compteurs d'avis..."):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        errors_count = 0
+        
+        for i, row in enumerate(st.session_state.product_data_cache):
+            progress = (i + 1) / len(st.session_state.product_data_cache)
+            progress_bar.progress(progress)
+            
+            product_name = row["Produit"]
+            brand_name = row["Marque"]
+            status_text.text(f"Chargement {i+1}/{len(st.session_state.product_data_cache)}: {brand_name} - {product_name[:30]}...")
+            
+            try:
+                # Construction des paramètres pour les métriques
+                product_params = {
+                    "product": product_name,
+                    "brand": brand_name,
+                    "start-date": filters["start_date"],
+                    "end-date": filters["end_date"]
+                }
+                
+                # Ajouter les autres filtres si définis
+                if filters["category"] != "ALL":
+                    product_params["category"] = filters["category"]
+                if filters["subcategory"] != "ALL":
+                    product_params["subcategory"] = filters["subcategory"]
+                if filters["country"] and "ALL" not in filters["country"]:
+                    product_params["country"] = ",".join(filters["country"])
+                if filters["source"] and "ALL" not in filters["source"]:
+                    product_params["source"] = ",".join(filters["source"])
+                if filters["market"] and "ALL" not in filters["market"]:
+                    product_params["market"] = ",".join(filters["market"])
+                if filters["attributes"]:
+                    product_params["attribute"] = ",".join(filters["attributes"])
+                if filters["attributes_positive"]:
+                    product_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                if filters["attributes_negative"]:
+                    product_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                
+                # Appel API pour les métriques
+                metrics = fetch("/metrics", product_params)
+                
+                if metrics and isinstance(metrics, dict):
+                    nb_reviews = metrics.get("nbDocs", 0)
+                    st.session_state.product_data_cache[i]["Nombre d'avis"] = nb_reviews
+                else:
+                    st.session_state.product_data_cache[i]["Nombre d'avis"] = "Erreur API"
+                    errors_count += 1
+                    
+            except Exception as e:
+                st.session_state.product_data_cache[i]["Nombre d'avis"] = "Erreur"
+                errors_count += 1
+        
+        progress_bar.empty()
+        status_text.empty()
+        
+        if errors_count > 0:
+            st.warning(f"⚠️ {errors_count} erreurs lors du chargement des compteurs")
+        else:
+            st.success(f"✅ Compteurs chargés pour {len(st.session_state.product_data_cache)} produits")
+        
+        st.session_state.reviews_counts_loaded = True
+
+def display_product_table():
+    """Affiche le tableau des produits avec options de tri et sélection"""
+    product_data = st.session_state.product_data_cache
+    
+    st.markdown("---")
+    st.subheader("🎯 Sélection des produits")
+    
+    # Recherche et filtrage
+    search_text = st.text_input("🔍 Filtrer les produits", key="product_search_filter")
+    
+    # Créer un DataFrame avec les données
+    df_products = pd.DataFrame(product_data)
+    
+    # Filtrer selon la recherche
+    if search_text:
+        mask = df_products["Produit"].str.contains(search_text, case=False, na=False) | df_products["Marque"].str.contains(search_text, case=False, na=False)
+        filtered_df = df_products[mask]
+    else:
+        filtered_df = df_products
+    
+    # Boutons de tri
+    col1, col2, col3 = st.columns([2, 2, 2])
+    with col1:
+        if st.button("Trier par marque", key="sort_brand"):
+            st.session_state.sort_column = "Marque"
+            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Marque" else True
+    with col2:
+        if st.button("Trier par produit", key="sort_product"):
+            st.session_state.sort_column = "Produit"
+            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Produit" else True
+    with col3:
+        if st.button("Trier par nb d'avis", key="sort_reviews"):
+            st.session_state.sort_column = "Nombre d'avis"
+            st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Nombre d'avis" else False
+    
+    # Appliquer le tri
+    if st.session_state.sort_column in filtered_df.columns:
+        if st.session_state.sort_column == "Nombre d'avis":
+            # Tri numérique pour les avis
+            def sort_reviews(x):
+                if isinstance(x, (int, float)):
+                    return x
+                elif str(x).isdigit():
+                    return int(x)
+                else:
+                    return -1  # Mettre les erreurs en dernier
+            
+            filtered_df = filtered_df.iloc[filtered_df["Nombre d'avis"].map(sort_reviews).argsort()]
+            if not st.session_state.sort_ascending:
+                filtered_df = filtered_df.iloc[::-1]
+        else:
+            filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
+    
+    # Afficher le tableau avec les cases à cocher
+    st.write(f"Nombre de produits: {len(filtered_df)} | Tri actuel: {st.session_state.sort_column} ({'croissant' if st.session_state.sort_ascending else 'décroissant'})")
+    
+    # Interface de sélection groupée
+    col_sel_all, col_apply_sel, col_deselect_all = st.columns([1, 2, 2])
+    with col_sel_all:
+        select_all = st.checkbox("✅ Tout sélectionner visible", key="select_all_products")
+    
+    with col_apply_sel:
+        if st.button("🎯 Appliquer la sélection", key="apply_selection"):
+            visible_product_ids = list(filtered_df["Produit"].values)
+            if select_all:
+                for pid in visible_product_ids:
+                    if pid not in st.session_state.selected_product_ids:
+                        st.session_state.selected_product_ids.append(pid)
+            else:
+                st.session_state.selected_product_ids = [
+                    pid for pid in st.session_state.selected_product_ids if pid not in visible_product_ids
+                ]
+    
+    with col_deselect_all:
+        if st.button("❌ Tout désélectionner", key="deselect_all_products"):
+            st.session_state.selected_product_ids = []
+
+    # En-têtes du tableau
+    header_col1, header_col2, header_col3, header_col4 = st.columns([0.5, 2, 2, 1])
+    with header_col1:
+        st.write("**Sélect.**")
+    with header_col2:
+        st.write("**Marque**")
+    with header_col3:
+        st.write("**Produit**")
+    with header_col4:
+        st.write("**Nombre d'avis**")
+
+    # Affichage ligne par ligne avec checkbox
+    for index, row in filtered_df.iterrows():
+        product_id = row["Produit"]
+        
+        col1, col2, col3, col4 = st.columns([0.5, 2, 2, 1])
+        with col1:
+            is_selected = st.checkbox(
+                "", 
+                value=product_id in st.session_state.selected_product_ids,
+                key=f"product_check_{index}_{hash(product_id)}"
+            )
+        with col2:
+            st.write(row["Marque"])
+        with col3:
+            st.write(row["Produit"])
+        with col4:
+            reviews_count = row["Nombre d'avis"]
+            if isinstance(reviews_count, (int, float)) and reviews_count >= 0:
+                st.write(f"**{reviews_count:,}**")
+            else:
+                st.write(f"{reviews_count}")
+    
+        # Mise à jour à la volée
+        if is_selected and product_id not in st.session_state.selected_product_ids:
+            st.session_state.selected_product_ids.append(product_id)
+        elif not is_selected and product_id in st.session_state.selected_product_ids:
+            st.session_state.selected_product_ids.remove(product_id)
+
+    # Résumé sélection
+    st.write("---")
+    selected_products = st.session_state.selected_product_ids
+    if selected_products:
+        st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products[:5])}{' ...' if len(selected_products) > 5 else ''}")
+    else:
+        st.write("**Aucun produit sélectionné.**")
 
 def display_reviews_export_interface(filters, selected_products):
     """Affiche l'interface d'export des reviews"""
