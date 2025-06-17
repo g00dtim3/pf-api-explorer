@@ -1049,10 +1049,9 @@ def main():
         st.header("🎯 Sélection des produits")
         selected_products = display_product_selection()
         
-        # Interface d'export des reviews
-        if selected_products:
-            st.markdown("---")
-            display_reviews_export_interface(st.session_state.filters, selected_products)
+        # Interface d'export des reviews (affichée même sans produits sélectionnés)
+        st.markdown("---")
+        display_reviews_export_interface(st.session_state.filters, selected_products)
         
         # Affichage des résultats si disponibles
         if st.session_state.all_docs:
