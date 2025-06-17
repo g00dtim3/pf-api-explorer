@@ -25,7 +25,8 @@ session_defaults = {
     "export_params": {},
     "switch_to_full_export": False,
     "sort_column": "Nombre d'avis",
-    "sort_ascending": False
+    "sort_ascending": False,
+    "filters": {}
 }
 
 for key, default_value in session_defaults.items():
@@ -513,7 +514,8 @@ def display_product_selection():
                 st.session_state.sort_ascending = not st.session_state.sort_ascending if st.session_state.sort_column == "Nombre d'avis" else False
         
         # Appliquer le tri
-        filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
+        if st.session_state.sort_column in filtered_df.columns:
+            filtered_df = filtered_df.sort_values(by=st.session_state.sort_column, ascending=st.session_state.sort_ascending)
         
         # Afficher le tableau avec les cases à cocher
         st.write(f"Nombre de produits: {len(filtered_df)} | Tri actuel: {st.session_state.sort_column} ({'croissant' if st.session_state.sort_ascending else 'décroissant'})")
@@ -588,8 +590,9 @@ def display_product_selection():
     
     return []
 
-def build_export_params(filters, selected_products):
-    """Construit les paramètres d'export à partir des filtres et produits sélectionnés"""
+def display_reviews_export_interface(filters, selected_products):
+    """Affiche l'interface d'export des reviews"""
+    # Construction des paramètres d'export
     params = {
         "start-date": filters["start_date"],
         "end-date": filters["end_date"]
@@ -616,24 +619,16 @@ def build_export_params(filters, selected_products):
     if selected_products:
         params["product"] = ",".join(selected_products)
     
-    return params
-	
-	# Mise à jour des paramètres avec les produits sélectionnés
-    if selected_products:
-        params["product"] = ",".join(selected_products)
-    
-    # Requête pour obtenir les métriques avec les produits sélectionnés
+    # Affichage des métriques
     dynamic_metrics = fetch("/metrics", params)
     if dynamic_metrics and dynamic_metrics.get("nbDocs"):
         st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
     else:
         st.warning("Aucune review disponible pour cette combinaison")
 
-    st.markdown("## ⚙️ Paramètres d’export des reviews")
+    st.markdown("## ⚙️ Paramètres d'export des reviews")
 
-    import os
-    from pathlib import Path
-    
+    # Journal des exports
     log_path = Path("review_exports_log.csv")
     if log_path.exists():
         with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
@@ -641,7 +636,7 @@ def build_export_params(filters, selected_products):
             st.dataframe(export_log_df)
             st.download_button("⬇️ Télécharger le journal des exports", export_log_df.to_csv(index=False), file_name="review_exports_log.csv", mime="text/csv")
     
-    with st.expander("🔧 Options d’export", expanded=True):
+    with st.expander("🔧 Options d'export", expanded=True):
         col1, col2 = st.columns(2)
     
         with col1:
@@ -663,21 +658,17 @@ def build_export_params(filters, selected_products):
         st.markdown("### 📊 Quotas API")
         quotas = fetch("/quotas")
         if quotas:
-            st.metric("Quota utilisé", quotas['used volume'])
-            st.metric("Quota restant", quotas['remaining volume'])
-            st.metric("Quota total", quotas['quota'])
-            st.metric("Valable jusqu’au", quotas['end date'])
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Volume utilisé", quotas['used volume'])
+            with col2:
+                st.metric("Volume restant", quotas['remaining volume'])
+            with col3:
+                st.metric("Quota total", quotas['quota'])
+            with col4:
+                st.metric("Valable jusqu'au", quotas['end date'])
     
-        if "cursor_mark" not in st.session_state:
-            st.session_state.cursor_mark = "*"
-        if "current_page" not in st.session_state:
-            st.session_state.current_page = 1
-        if "all_docs" not in st.session_state:
-            st.session_state.all_docs = []
-        if "next_cursor" not in st.session_state:
-            st.session_state.next_cursor = None
-    
-        # ✅ Vérification d’export déjà réalisé, englobant ou identique
+        # ✅ Vérification d'export déjà réalisé, englobant ou identique
         potential_duplicates = []
         if log_path.exists():
             try:
@@ -702,18 +693,6 @@ def build_export_params(filters, selected_products):
     
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
-    
-        # Initialiser les variables de session si elles n'existent pas encore
-        if 'is_preview_mode' not in st.session_state:
-            st.session_state.is_preview_mode = True
-        if 'current_page' not in st.session_state:
-            st.session_state.current_page = 1
-        if 'all_docs' not in st.session_state:
-            st.session_state.all_docs = []
-        if 'export_params' not in st.session_state:
-            st.session_state.export_params = {}
-        if 'switch_to_full_export' not in st.session_state:
-            st.session_state.switch_to_full_export = False
         
         # Ajouter des options pour l'aperçu et l'export complet
         st.header("🔍 Options d'export")
@@ -887,148 +866,214 @@ def build_export_params(filters, selected_products):
                     status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
                 else:
                     status_text.text(f"⚠️ Aucune review récupérée. Vérifiez vos filtres.")
-                # Affichage des reviews si dispo
-                if st.session_state.all_docs:
-                    docs = st.session_state.all_docs
-                    total_results = len(docs)
-                    rows_per_page = int(rows_per_page)
-                    total_pages = max(1, (total_results + rows_per_page - 1) // rows_per_page)
-                    
-                    # S'assurer que la page actuelle est dans les limites valides
-                    if st.session_state.current_page > total_pages:
-                        st.session_state.current_page = total_pages
-                    if st.session_state.current_page < 1:
-                        st.session_state.current_page = 1
-                    
-                    current_page = st.session_state.current_page
-                    
-                    start_idx = (current_page - 1) * rows_per_page
-                    end_idx = min(start_idx + rows_per_page, total_results)
-                    page_docs = docs[start_idx:end_idx]
-                    
-                    # Afficher un bandeau différent selon le mode
-                    if st.session_state.is_preview_mode:
-                        st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
-                    
-                    st.markdown(f"""
-                    ### 📋 Résultats
-                    - **Total récupéré** : `{total_results}`
-                    - **Affichés sur cette page** : `{end_idx - start_idx}`
-                    - **Page actuelle** : `{current_page}` / `{total_pages}`
-                    """)
-                    
-                    df = pd.json_normalize(page_docs)
-                    df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                    st.dataframe(df)
-                    
-                    # Pagination avec gestion d'état par callbacks pour éviter les experimental_rerun
-                    col1, col2 = st.columns(2)
-                    
-                    def prev_page():
-                        if st.session_state.current_page > 1:
-                            st.session_state.current_page -= 1
-                    
-                    def next_page():
-                        if st.session_state.current_page < total_pages:
-                            st.session_state.current_page += 1
-                    
-                    with col1:
-                        st.button("⬅️ Page précédente", on_click=prev_page, disabled=current_page <= 1)
-                    with col2:
-                        st.button("➡️ Page suivante", on_click=next_page, disabled=current_page >= total_pages)
-                    
-                    # Utiliser les params stockés pour les noms de fichiers
-                    export_params = st.session_state.export_params
-                    
-                    # Générer des noms de fichiers basés sur les filtres
-                    page_csv_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="csv")
-                    page_excel_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="xlsx")
-                    
-                    full_csv_filename = generate_export_filename(export_params, 
-                                                               mode="preview" if st.session_state.is_preview_mode else "complete", 
-                                                               extension="csv")
-                    full_excel_filename = generate_export_filename(export_params, 
-                                                                 mode="preview" if st.session_state.is_preview_mode else "complete", 
-                                                                 extension="xlsx")
-                    
-                    # Export de la page actuelle
-                    all_csv = df.to_csv(index=False)
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False)
-                    excel_data = excel_buffer.getvalue()
-                    
-                    st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=page_csv_filename, mime="text/csv")
-                    with col2:
-                        st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=page_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    with col3:
-                        try:
-                            df_flat_page = postprocess_reviews(df.copy())
-                            flat_csv_page = df_flat_page.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                            flat_page_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="plat.csv")
-                            st.download_button("📃 Télécharger le format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
-                        except Exception as e:
-                            st.warning(f"Erreur format plat : {e}")
 
-                    # Export de toutes les données stockées
-                    st.markdown("---")
-                    st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
-                    
-                    if st.session_state.is_preview_mode:
-                        st.info("⚠️ Vous êtes en mode aperçu. Ce téléchargement contient uniquement un échantillon limité des données (max 50 reviews).")
-                    else:
-                        st.success("✅ Ce téléchargement contient l'ensemble des reviews correspondant à vos filtres.")
-                    
-                    # Afficher le nom du fichier pour transparence
-                    st.markdown(f"**Nom de fichier généré :** `{full_csv_filename}`")
-                    
-                    full_df = pd.json_normalize(st.session_state.all_docs)
-                    full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
-                    all_csv_full = full_df.to_csv(index=False, encoding="utf-8-sig")
-                    
-                    excel_buffer_full = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
-                        full_df.to_excel(writer, index=False)
-                    excel_data_full = excel_buffer_full.getvalue()
-                    
-                    colf1, colf2, colf3 = st.columns(3)
-                    with colf1:
-                        st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
-                    with colf2:
-                        st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    with colf3:
-                        try:
-                            df_flat_full = postprocess_reviews(full_df.copy())
-                            flat_csv_full = df_flat_full.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                            flat_full_filename = generate_export_filename(export_params, mode="preview" if st.session_state.is_preview_mode else "complete", extension="plat.csv")
-                            st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
-                        except Exception as e:
-                            st.warning(f"Erreur format plat : {e}")
+def display_reviews_results():
+    """Affiche les résultats des reviews récupérées"""
+    if st.session_state.all_docs:
+        docs = st.session_state.all_docs
+        total_results = len(docs)
+        
+        # Utiliser un nombre de lignes par page par défaut si pas encore défini
+        rows_per_page = 100  # Valeur par défaut
+        total_pages = max(1, (total_results + rows_per_page - 1) // rows_per_page)
+        
+        # S'assurer que la page actuelle est dans les limites valides
+        if st.session_state.current_page > total_pages:
+            st.session_state.current_page = total_pages
+        if st.session_state.current_page < 1:
+            st.session_state.current_page = 1
+        
+        current_page = st.session_state.current_page
+        
+        start_idx = (current_page - 1) * rows_per_page
+        end_idx = min(start_idx + rows_per_page, total_results)
+        page_docs = docs[start_idx:end_idx]
+        
+        # Afficher un bandeau différent selon le mode
+        if st.session_state.is_preview_mode:
+            st.warning("⚠️ Vous êtes en mode aperçu - Seulement un échantillon des données est affiché")
+        
+        st.markdown(f"""
+        ### 📋 Résultats
+        - **Total récupéré** : `{total_results}`
+        - **Affichés sur cette page** : `{end_idx - start_idx}`
+        - **Page actuelle** : `{current_page}` / `{total_pages}`
+        """)
+        
+        df = pd.json_normalize(page_docs)
+        df = df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        st.dataframe(df)
+        
+        # Pagination avec gestion d'état par callbacks pour éviter les experimental_rerun
+        col1, col2 = st.columns(2)
+        
+        def prev_page():
+            if st.session_state.current_page > 1:
+                st.session_state.current_page -= 1
+        
+        def next_page():
+            if st.session_state.current_page < total_pages:
+                st.session_state.current_page += 1
+        
+        with col1:
+            st.button("⬅️ Page précédente", on_click=prev_page, disabled=current_page <= 1)
+        with col2:
+            st.button("➡️ Page suivante", on_click=next_page, disabled=current_page >= total_pages)
+        
+        # Utiliser les params stockés pour les noms de fichiers
+        export_params = st.session_state.export_params
+        
+        # Générer des noms de fichiers basés sur les filtres
+        page_csv_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="csv")
+        page_excel_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="xlsx")
+        
+        full_csv_filename = generate_export_filename(export_params, 
+                                                   mode="preview" if st.session_state.is_preview_mode else "complete", 
+                                                   extension="csv")
+        full_excel_filename = generate_export_filename(export_params, 
+                                                     mode="preview" if st.session_state.is_preview_mode else "complete", 
+                                                     extension="xlsx")
+        
+        # Export de la page actuelle
+        all_csv = df.to_csv(index=False)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        excel_data = excel_buffer.getvalue()
+        
+        st.success(f"**Téléchargement prêt !** {len(page_docs)} résultats affichés.")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.download_button("📂 Télécharger la page en CSV", all_csv, file_name=page_csv_filename, mime="text/csv")
+        with col2:
+            st.download_button("📄 Télécharger la page en Excel", excel_data, file_name=page_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with col3:
+            try:
+                df_flat_page = postprocess_reviews(df.copy())
+                flat_csv_page = df_flat_page.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                flat_page_filename = generate_export_filename(export_params, mode="page", page=current_page, extension="plat.csv")
+                st.download_button("📃 Télécharger le format à plat", flat_csv_page, file_name=flat_page_filename, mime="text/csv")
+            except Exception as e:
+                st.warning(f"Erreur format plat : {e}")
 
-if st.session_state.get("filters"):
-    import json
-    export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
-    export_preset = {
-        "start-date": str(st.session_state.filters["start_date"]),
-        "end-date": str(st.session_state.filters["end_date"]),
-        "brand": ",".join(st.session_state.filters["brand"]),
-        "category": st.session_state.filters.get("category", "ALL"),
-        "subcategory": st.session_state.filters.get("subcategory", "ALL"),
-        "token": export_token
-    }
-    st.code(json.dumps(export_preset, indent=2), language="json")
-    st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+        # Export de toutes les données stockées
+        st.markdown("---")
+        st.subheader("📦 Exporter " + ("l'aperçu actuel" if st.session_state.is_preview_mode else "toutes les pages"))
+        
+        if st.session_state.is_preview_mode:
+            st.info("⚠️ Vous êtes en mode aperçu. Ce téléchargement contient uniquement un échantillon limité des données (max 50 reviews).")
+        else:
+            st.success("✅ Ce téléchargement contient l'ensemble des reviews correspondant à vos filtres.")
+        
+        # Afficher le nom du fichier pour transparence
+        st.markdown(f"**Nom de fichier généré :** `{full_csv_filename}`")
+        
+        full_df = pd.json_normalize(st.session_state.all_docs)
+        full_df = full_df.applymap(lambda x: str(x) if isinstance(x, (dict, list)) else x)
+        all_csv_full = full_df.to_csv(index=False, encoding="utf-8-sig")
+        
+        excel_buffer_full = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer_full, engine='openpyxl') as writer:
+            full_df.to_excel(writer, index=False)
+        excel_data_full = excel_buffer_full.getvalue()
+        
+        colf1, colf2, colf3 = st.columns(3)
+        with colf1:
+            st.download_button("📂 Télécharger les reviews en CSV", all_csv_full, file_name=full_csv_filename, mime="text/csv")
+        with colf2:
+            st.download_button("📄 Télécharger les reviews en Excel", excel_data_full, file_name=full_excel_filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with colf3:
+            try:
+                df_flat_full = postprocess_reviews(full_df.copy())
+                flat_csv_full = df_flat_full.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                flat_full_filename = generate_export_filename(export_params, mode="preview" if st.session_state.is_preview_mode else "complete", extension="plat.csv")
+                st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
+            except Exception as e:
+                st.warning(f"Erreur format plat : {e}")
+
+def display_export_configuration():
+    """Affiche la configuration d'export réutilisable"""
+    if st.session_state.get("filters"):
+        st.markdown("---")
+        st.markdown("### 📋 Configuration réutilisable")
+        st.markdown("Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+        
+        import json
+        export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
+        export_preset = {
+            "start-date": str(st.session_state.filters["start_date"]),
+            "end-date": str(st.session_state.filters["end_date"]),
+            "brand": ",".join(st.session_state.filters["brand"]),
+            "category": st.session_state.filters.get("category", "ALL"),
+            "subcategory": st.session_state.filters.get("subcategory", "ALL"),
+            "token": export_token
+        }
+        
+        # Ajouter les autres filtres s'ils sont définis
+        if st.session_state.filters.get("country") and "ALL" not in st.session_state.filters["country"]:
+            export_preset["country"] = ",".join(st.session_state.filters["country"])
+        if st.session_state.filters.get("source") and "ALL" not in st.session_state.filters["source"]:
+            export_preset["source"] = ",".join(st.session_state.filters["source"])
+        if st.session_state.filters.get("market") and "ALL" not in st.session_state.filters["market"]:
+            export_preset["market"] = ",".join(st.session_state.filters["market"])
+        if st.session_state.filters.get("attributes"):
+            export_preset["attributes"] = st.session_state.filters["attributes"]
+        if st.session_state.filters.get("attributes_positive"):
+            export_preset["attributes_positive"] = st.session_state.filters["attributes_positive"]
+        if st.session_state.filters.get("attributes_negative"):
+            export_preset["attributes_negative"] = st.session_state.filters["attributes_negative"]
+        
+        st.code(json.dumps(export_preset, indent=2), language="json")
 
 def main():
+    """Fonction principale de l'application"""
+    st.title("🔍 Explorateur API Ratings & Reviews")
+    
+    # Affichage des quotas en header
+    with st.expander("📊 Quotas API", expanded=False):
+        display_quotas()
+    
+    # Sidebar avec filtres
     display_sidebar_filters()
-    if st.session_state.get("apply_filters") and "filters" in st.session_state:
+    
+    # Interface principale
+    if st.session_state.get("apply_filters") and st.session_state.get("filters"):
+        # Affichage du résumé des filtres
         display_filter_summary()
+        
+        # Affichage des produits par marque
         display_products_by_brand()
+        
+        # Sélection des produits
+        st.markdown("---")
+        st.header("🎯 Sélection des produits")
         selected_products = display_product_selection()
-        build_export_params(st.session_state.filters, selected_products)
+        
+        # Interface d'export des reviews
+        if selected_products:
+            st.markdown("---")
+            display_reviews_export_interface(st.session_state.filters, selected_products)
+        
+        # Affichage des résultats si disponibles
+        if st.session_state.all_docs:
+            st.markdown("---")
+            display_reviews_results()
+        
+        # Configuration d'export réutilisable
+        display_export_configuration()
+        
+    else:
+        st.markdown("""
+        ## 👋 Bienvenue dans l'Explorateur API Ratings & Reviews
+        
+        Pour commencer :
+        1. **Configurez vos filtres** dans la barre latérale gauche
+        2. **Appliquez les filtres** en cliquant sur "✅ Appliquer les filtres"
+        3. **Sélectionnez vos produits** dans la liste qui s'affichera
+        4. **Exportez vos reviews** avec les options disponibles
+        
+        💡 **Astuce** : Vous pouvez charger une configuration existante en collant un JSON dans la zone de configuration.
+        """)
 
 if __name__ == "__main__":
     main()
