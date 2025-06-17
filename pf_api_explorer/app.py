@@ -237,8 +237,8 @@ def main():
 
 with st.sidebar:
     st.header("Filtres")
-    st.markdown("### 📎 Charger une configuration via URL ou JSON")
-    json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")    
+        st.markdown("### 📎 Charger une configuration via URL ou JSON")
+        json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")    
         if st.button("🔄 Charger les paramètres"):
             try:
                 import json
