@@ -237,6 +237,39 @@ def main():
 
     with st.sidebar:
         st.header("Filtres")
+        st.markdown("### 📎 Charger une configuration via URL ou JSON")
+        json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")
+    
+        if st.button("🔄 Charger les paramètres"):
+            try:
+                import json
+                parsed = json.loads(json_input)
+    
+                # Cast start/end-date si c'est une string ou un objet
+                for k in ["start-date", "end-date"]:
+                    if isinstance(parsed.get(k), str):
+                        parsed[k] = pd.to_datetime(parsed[k]).date()
+    
+                # Injecter dans les filtres
+                st.session_state.apply_filters = True
+                st.session_state.filters = {
+                    "start_date": parsed.get("start-date"),
+                    "end_date": parsed.get("end-date"),
+                    "category": parsed.get("category", "ALL"),
+                    "subcategory": parsed.get("subcategory", "ALL"),
+                    "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
+                    "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
+                    "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
+                    "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
+                    "attributes": parsed.get("attributes", []),
+                    "attributes_positive": parsed.get("attributes_positive", []),
+                    "attributes_negative": parsed.get("attributes_negative", [])
+                }
+                st.success("✅ Paramètres chargés avec succès.")
+            except Exception as e:
+                st.error(f"Erreur lors du parsing : {e}")
+    
+        
 
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
         end_date = st.date_input("Date de fin", value=datetime.date.today())
@@ -326,6 +359,20 @@ def main():
     st.markdown(f"- **Attributs** : `{', '.join(filters['attributes'])}`")
     st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
     st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
+
+    if st.session_state.get("filters"):
+    import json
+    export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
+    export_preset = {
+        "start-date": str(st.session_state.filters["start_date"]),
+        "end-date": str(st.session_state.filters["end_date"]),
+        "brand": ",".join(st.session_state.filters["brand"]),
+        "category": st.session_state.filters.get("category", "ALL"),
+        "subcategory": st.session_state.filters.get("subcategory", "ALL"),
+        "token": export_token
+    }
+    st.code(json.dumps(export_preset, indent=2), language="json")
+    st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
 
     # 📋 Section : Produits par marque selon les filtres appliqués
     st.markdown("---")
