@@ -622,77 +622,86 @@ def display_product_selection():
     if product_data:
         st.subheader("📊 Produits disponibles")
         
-        # Option pour charger le nombre d'avis
+        # Option pour charger le nombre d'avis - AVANT la logique de chargement
         load_reviews_count = st.checkbox(
             "📈 Charger le nombre d'avis par produit", 
             value=False,
-            help="Cette option peut prendre du temps à charger"
+            help="Cette option peut prendre du temps à charger",
+            key="load_reviews_checkbox"
         )
         
         # Ajouter une recherche pour filtrer les produits
-        search_text = st.text_input("🔍 Filtrer les produits")
+        search_text = st.text_input("🔍 Filtrer les produits", key="product_search")
         
         # Récupérer le nombre d'avis par produit seulement si demandé
         if load_reviews_count:
-            with st.spinner("Récupération du nombre d'avis par produit..."):
-                progress_container = st.container()
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                for i, row in enumerate(product_data):
-                    product_name = row["Produit"]
-                    brand_name = row["Marque"]
+            # Vérifier si on a déjà chargé les données pour éviter les rechargements inutiles
+            if "reviews_count_loaded" not in st.session_state:
+                st.session_state.reviews_count_loaded = False
+            
+            if not st.session_state.reviews_count_loaded or st.button("🔄 Recharger les compteurs d'avis", key="reload_counts"):
+                with st.spinner("Récupération du nombre d'avis par produit..."):
+                    progress_container = st.container()
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    # Mise à jour du progress
-                    progress = (i + 1) / len(product_data)
-                    progress_bar.progress(progress)
-                    status_text.text(f"Chargement {i+1}/{len(product_data)}: {brand_name} - {product_name[:30]}...")
-                    
-                    try:
-                        # Construction des paramètres pour les métriques
-                        product_params = {
-                            "product": product_name,
-                            "brand": brand_name,
-                            "start-date": filters["start_date"],
-                            "end-date": filters["end_date"]
-                        }
+                    for i, row in enumerate(product_data):
+                        product_name = row["Produit"]
+                        brand_name = row["Marque"]
                         
-                        # Ajouter les autres filtres si définis
-                        if filters["category"] != "ALL":
-                            product_params["category"] = filters["category"]
-                        if filters["subcategory"] != "ALL":
-                            product_params["subcategory"] = filters["subcategory"]
-                        if filters["country"] and "ALL" not in filters["country"]:
-                            product_params["country"] = ",".join(filters["country"])
-                        if filters["source"] and "ALL" not in filters["source"]:
-                            product_params["source"] = ",".join(filters["source"])
-                        if filters["market"] and "ALL" not in filters["market"]:
-                            product_params["market"] = ",".join(filters["market"])
-                        if filters["attributes"]:
-                            product_params["attribute"] = ",".join(filters["attributes"])
-                        if filters["attributes_positive"]:
-                            product_params["attribute-positive"] = ",".join(filters["attributes_positive"])
-                        if filters["attributes_negative"]:
-                            product_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                        # Mise à jour du progress
+                        progress = (i + 1) / len(product_data)
+                        progress_bar.progress(progress)
+                        status_text.text(f"Chargement {i+1}/{len(product_data)}: {brand_name} - {product_name[:30]}...")
                         
-                        # Appel API pour les métriques
-                        metrics = fetch("/metrics", product_params)
-                        
-                        if metrics and isinstance(metrics, dict):
-                            nb_reviews = metrics.get("nbDocs", 0)
-                            product_data[i]["Nombre d'avis"] = nb_reviews
-                        else:
-                            product_data[i]["Nombre d'avis"] = "Erreur API"
+                        try:
+                            # Construction des paramètres pour les métriques
+                            product_params = {
+                                "product": product_name,
+                                "brand": brand_name,
+                                "start-date": filters["start_date"],
+                                "end-date": filters["end_date"]
+                            }
                             
-                    except Exception as e:
-                        st.warning(f"Erreur pour {brand_name} - {product_name}: {str(e)}")
-                        product_data[i]["Nombre d'avis"] = "Erreur"
-                
-                # Nettoyage de l'interface de progression
-                progress_bar.empty()
-                status_text.empty()
-                st.success(f"✅ Nombre d'avis chargé pour {len(product_data)} produits")
+                            # Ajouter les autres filtres si définis
+                            if filters["category"] != "ALL":
+                                product_params["category"] = filters["category"]
+                            if filters["subcategory"] != "ALL":
+                                product_params["subcategory"] = filters["subcategory"]
+                            if filters["country"] and "ALL" not in filters["country"]:
+                                product_params["country"] = ",".join(filters["country"])
+                            if filters["source"] and "ALL" not in filters["source"]:
+                                product_params["source"] = ",".join(filters["source"])
+                            if filters["market"] and "ALL" not in filters["market"]:
+                                product_params["market"] = ",".join(filters["market"])
+                            if filters["attributes"]:
+                                product_params["attribute"] = ",".join(filters["attributes"])
+                            if filters["attributes_positive"]:
+                                product_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                            if filters["attributes_negative"]:
+                                product_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                            
+                            # Appel API pour les métriques
+                            metrics = fetch("/metrics", product_params)
+                            
+                            if metrics and isinstance(metrics, dict):
+                                nb_reviews = metrics.get("nbDocs", 0)
+                                product_data[i]["Nombre d'avis"] = nb_reviews
+                            else:
+                                product_data[i]["Nombre d'avis"] = "Erreur API"
+                                
+                        except Exception as e:
+                            st.warning(f"Erreur pour {brand_name} - {product_name}: {str(e)}")
+                            product_data[i]["Nombre d'avis"] = "Erreur"
+                    
+                    # Nettoyage de l'interface de progression
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.success(f"✅ Nombre d'avis chargé pour {len(product_data)} produits")
+                    st.session_state.reviews_count_loaded = True
         else:
+            # Réinitialiser le flag si l'option est décochée
+            st.session_state.reviews_count_loaded = False
             for i, row in enumerate(product_data):
                 product_data[i]["Nombre d'avis"] = "Non chargé"
         
