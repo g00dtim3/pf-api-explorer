@@ -1461,23 +1461,13 @@ def display_export_interface():
         st.markdown("---")
         st.header("🎯 Sélection de produits")
         
-        # Afficher un récapitulatif avant le chargement
-        filters = st.session_state.filters
-        st.info(f"📊 Chargement des produits pour {len(filters['brand'])} marque(s) : {', '.join(filters['brand'])}")
+        # Affichage direct de l'interface de sélection
+        selected_products = display_product_selection()
         
-        if st.button("▶️ Charger la liste des produits", key="load_products_list"):
-            with st.spinner("Chargement en cours..."):
-                selected_products = display_product_selection()
-                
-                # Interface d'export classique
-                st.markdown("---")
-                display_reviews_export_interface(st.session_state.filters, selected_products)
-        else:
-            st.markdown("""
-            💡 **Conseil** : Cliquez sur "▶️ Charger la liste des produits" pour voir tous les produits disponibles.
-            
-            ⚠️ **Attention** : Avec beaucoup de marques, cela peut prendre plusieurs minutes et consommer votre quota API.
-            """)
+        # Interface d'export classique (affichée même sans sélection)
+        if st.session_state.get("product_list_loaded"):
+            st.markdown("---")
+            display_reviews_export_interface(st.session_state.filters, selected_products)
 
 def display_reviews_results():
     """Affiche les résultats des reviews récupérées"""
