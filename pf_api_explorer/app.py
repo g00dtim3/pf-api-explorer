@@ -332,7 +332,6 @@ with st.sidebar:
 
     if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
         st.info("Appliquez les filtres pour afficher les données.")
-        return
 
     if st.session_state.get("filters"):
         import json
