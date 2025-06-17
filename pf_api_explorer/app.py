@@ -1021,3 +1021,14 @@ if st.session_state.get("filters"):
     }
     st.code(json.dumps(export_preset, indent=2), language="json")
     st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+
+def main():
+    display_sidebar_filters()
+    if st.session_state.get("apply_filters") and "filters" in st.session_state:
+        display_filter_summary()
+        display_products_by_brand()
+        selected_products = display_product_selection()
+        build_export_params(st.session_state.filters, selected_products)
+
+if __name__ == "__main__":
+    main()
