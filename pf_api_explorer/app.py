@@ -237,39 +237,40 @@ def main():
 
 with st.sidebar:
     st.header("Filtres")
-        st.markdown("### 📎 Charger une configuration via URL ou JSON")
-        json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")    
-        if st.button("🔄 Charger les paramètres"):
-            try:
-                import json
-                parsed = json.loads(json_input)
-    
-                # Cast start/end-date si c'est une string ou un objet
-                for k in ["start-date", "end-date"]:
-                    if isinstance(parsed.get(k), str):
-                        parsed[k] = pd.to_datetime(parsed[k]).date()
-    
-                # Injecter dans les filtres
-                st.session_state.apply_filters = True
-                st.session_state.filters = {
-                    "start_date": parsed.get("start-date"),
-                    "end_date": parsed.get("end-date"),
-                    "category": parsed.get("category", "ALL"),
-                    "subcategory": parsed.get("subcategory", "ALL"),
-                    "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
-                    "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
-                    "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
-                    "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
-                    "attributes": parsed.get("attributes", []),
-                    "attributes_positive": parsed.get("attributes_positive", []),
-                    "attributes_negative": parsed.get("attributes_negative", [])
-                }
-                st.success("✅ Paramètres chargés avec succès.")
-            except Exception as e:
-                st.error(f"Erreur lors du parsing : {e}")
-    
-        
 
+    st.markdown("### 📎 Charger une configuration via URL ou JSON")
+    json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")
+
+    if st.button("🔄 Charger les paramètres"):
+        try:
+            import json
+            parsed = json.loads(json_input)
+
+            # Cast start/end-date si c'est une string ou un objet
+            for k in ["start-date", "end-date"]:
+                if isinstance(parsed.get(k), str):
+                    parsed[k] = pd.to_datetime(parsed[k]).date()
+
+            # Injecter dans les filtres
+            st.session_state.apply_filters = True
+            st.session_state.filters = {
+                "start_date": parsed.get("start-date"),
+                "end_date": parsed.get("end-date"),
+                "category": parsed.get("category", "ALL"),
+                "subcategory": parsed.get("subcategory", "ALL"),
+                "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
+                "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
+                "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
+                "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
+                "attributes": parsed.get("attributes", []),
+                "attributes_positive": parsed.get("attributes_positive", []),
+                "attributes_negative": parsed.get("attributes_negative", [])
+            }
+            st.success("✅ Paramètres chargés avec succès.")
+        except Exception as e:
+            st.error(f"Erreur lors du parsing : {e}")
+
+        
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
         end_date = st.date_input("Date de fin", value=datetime.date.today())
 
