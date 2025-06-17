@@ -6,14 +6,34 @@ import io
 import altair as alt
 import urllib.parse
 from functools import partial
-
+import ast
+import json
+import os
+from pathlib import Path
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
-st.session_state.setdefault("apply_filters", False)
+# Initialisation des variables de session
+session_defaults = {
+    "apply_filters": False,
+    "cursor_mark": "*",
+    "current_page": 1,
+    "all_docs": [],
+    "next_cursor": None,
+    "selected_product_ids": [],
+    "is_preview_mode": True,
+    "export_params": {},
+    "switch_to_full_export": False,
+    "sort_column": "Nombre d'avis",
+    "sort_ascending": False
+}
+
+for key, default_value in session_defaults.items():
+    st.session_state.setdefault(key, default_value)
 
 @st.cache_data(ttl=3600)
 def fetch_cached(endpoint, params=None):
+    """Fonction pour récupérer les données de l'API avec cache"""
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
     show_debug = False
@@ -50,6 +70,7 @@ def fetch_cached(endpoint, params=None):
 
 @st.cache_data(ttl=3600)
 def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
+    """Récupère les produits pour une marque donnée avec filtres"""
     params = {
         "brand": brand,
         "start-date": start_date,
@@ -62,15 +83,8 @@ def fetch_products_by_brand(brand, category, subcategory, start_date, end_date):
     return fetch_cached("/products", params)
 
 @st.cache_data(ttl=3600)
-def fetch_all_products_by_brand(brand):
-    params = {
-        "brand": brand,
-    }
-    return fetch_cached("/products", params)
-
-
-@st.cache_data(ttl=3600)
 def fetch_attributes_dynamic(category, subcategory, brand):
+    """Récupère les attributs dynamiquement selon les filtres"""
     params = {}
     if category != "ALL":
         params["category"] = category
@@ -81,12 +95,18 @@ def fetch_attributes_dynamic(category, subcategory, brand):
     return fetch_cached("/attributes", params)
 
 def fetch(endpoint, params=None):
+    """Wrapper pour la fonction fetch_cached"""
     return fetch_cached(endpoint, params)
-import ast  # à ajouter si pas déjà importé
 
-# ✅ Fonction de Postprocessing
 def postprocess_reviews(df):
-    df.rename(columns={'id':'guid','category':'categories','content trad':'verbatim_content','product':'product_name_SEMANTIWEB'}, inplace=True)
+    """Fonction de postprocessing des reviews"""
+    df.rename(columns={
+        'id': 'guid',
+        'category': 'categories',
+        'content trad': 'verbatim_content',
+        'product': 'product_name_SEMANTIWEB'
+    }, inplace=True)
+    
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df['date'] = df['date'].dt.strftime('01/%m/%Y')
@@ -110,24 +130,28 @@ def postprocess_reviews(df):
         pos_attrs_set = set()
         neg_attrs_set = set()
         all_attrs_set = set()
+        
         if pd.notna(row.get('attributes')):
             try:
                 all_attrs = ast.literal_eval(row['attributes'])
                 all_attrs_set = {attr for attr in all_attrs if attr in predefined_attributes}
             except (ValueError, SyntaxError):
                 pass
+                
         if pd.notna(row.get('attributes positive')):
             try:
                 pos_attrs = ast.literal_eval(row['attributes positive'])
                 pos_attrs_set = {attr for attr in pos_attrs if attr in predefined_attributes}
             except (ValueError, SyntaxError):
                 pass
+                
         if pd.notna(row.get('attributes negative')):
             try:
                 neg_attrs = ast.literal_eval(row['attributes negative'])
                 neg_attrs_set = {attr for attr in neg_attrs if attr in predefined_attributes}
             except (ValueError, SyntaxError):
                 pass
+                
         pos_attributes_by_row[idx] = pos_attrs_set
         neg_attributes_by_row[idx] = neg_attrs_set
         all_attributes_by_row[idx] = all_attrs_set
@@ -140,6 +164,7 @@ def postprocess_reviews(df):
         only_pos_attrs = pos_attrs - neutral_attrs
         only_neg_attrs = neg_attrs - neutral_attrs
         implicit_neutral_attrs = all_attrs - pos_attrs - neg_attrs
+        
         for attr in neutral_attrs:
             df.at[idx, attribute_columns[attr]] = 'neutre'
         for attr in only_pos_attrs:
@@ -161,6 +186,7 @@ def postprocess_reviews(df):
         safety_neutral = any(attr in (all_attrs - pos_attrs - neg_attrs) for attr in safety_attrs)
         safety_positive = any(attr in pos_attrs for attr in safety_attrs)
         safety_negative = any(attr in neg_attrs for attr in safety_attrs)
+        
         if safety_positive and safety_negative:
             df.at[idx, 'safety'] = 'neutre'
         elif safety_positive:
@@ -173,9 +199,8 @@ def postprocess_reviews(df):
     final_columns = original_columns + list(attribute_columns.values()) + ['safety']
     return df[final_columns]
 
-
-# ✅ Fonction définie en dehors de main()
 def generate_export_filename(params, mode="complete", page=None, extension="csv"):
+    """Génère un nom de fichier basé sur les paramètres d'export"""
     filename_parts = ["reviews"]
     country = params.get("country", "").strip() if isinstance(params.get("country"), str) else ""
     if country:
@@ -197,13 +222,10 @@ def generate_export_filename(params, mode="complete", page=None, extension="csv"
     start_date = params.get("start-date")
     end_date = params.get("end-date")
     
-    # S'assurer que start_date et end_date sont des chaînes de caractères
     if start_date is not None and end_date is not None:
-        # Convertir en chaîne si nécessaire (comme pour les objets datetime)
         start_date_str = str(start_date).replace("-", "")
         end_date_str = str(end_date).replace("-", "")
         
-        # S'assurer que nous avons au moins 8 caractères pour un format de date
         if len(start_date_str) >= 8 and len(end_date_str) >= 8:
             if start_date_str[:4] == end_date_str[:4]:
                 date_str = f"{start_date_str[:4]}_{start_date_str[4:8]}-{end_date_str[4:8]}"
@@ -223,61 +245,71 @@ def generate_export_filename(params, mode="complete", page=None, extension="csv"
 
     return filename
 
-def main():
-    st.title("Explorateur API Ratings & Reviews")
-
-    st.subheader("Quotas")
-    if st.button("Afficher mes quotas"):
-        result = fetch("/quotas")
-        if result:
+def display_quotas():
+    """Affiche les quotas API"""
+    result = fetch("/quotas")
+    if result:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
             st.metric("Volume utilisé", result['used volume'])
+        with col2:
             st.metric("Volume restant", result['remaining volume'])
+        with col3:
             st.metric("Quota total", result['quota'])
+        with col4:
             st.metric("Valable jusqu'au", result['end date'])
 
-with st.sidebar:
-    st.header("Filtres")
-
-    st.markdown("### 📎 Charger une configuration via URL ou JSON")
-    json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")
-
-    if st.button("🔄 Charger les paramètres"):
-        try:
-            import json
-            parsed = json.loads(json_input)
-
-            # Cast start/end-date si c'est une string ou un objet
-            for k in ["start-date", "end-date"]:
-                if isinstance(parsed.get(k), str):
-                    parsed[k] = pd.to_datetime(parsed[k]).date()
-
-            # Injecter dans les filtres
-            st.session_state.apply_filters = True
-            st.session_state.filters = {
-                "start_date": parsed.get("start-date"),
-                "end_date": parsed.get("end-date"),
-                "category": parsed.get("category", "ALL"),
-                "subcategory": parsed.get("subcategory", "ALL"),
-                "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
-                "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
-                "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
-                "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
-                "attributes": parsed.get("attributes", []),
-                "attributes_positive": parsed.get("attributes_positive", []),
-                "attributes_negative": parsed.get("attributes_negative", [])
-            }
-            st.success("✅ Paramètres chargés avec succès.")
-        except Exception as e:
-            st.error(f"Erreur lors du parsing : {e}")
-
+def load_filters_from_json(json_input):
+    """Charge les filtres depuis un JSON"""
+    try:
+        parsed = json.loads(json_input)
         
+        # Cast start/end-date si c'est une string
+        for k in ["start-date", "end-date"]:
+            if isinstance(parsed.get(k), str):
+                parsed[k] = pd.to_datetime(parsed[k]).date()
+
+        # Injecter dans les filtres
+        st.session_state.apply_filters = True
+        st.session_state.filters = {
+            "start_date": parsed.get("start-date"),
+            "end_date": parsed.get("end-date"),
+            "category": parsed.get("category", "ALL"),
+            "subcategory": parsed.get("subcategory", "ALL"),
+            "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
+            "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
+            "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
+            "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
+            "attributes": parsed.get("attributes", []),
+            "attributes_positive": parsed.get("attributes_positive", []),
+            "attributes_negative": parsed.get("attributes_negative", [])
+        }
+        st.success("✅ Paramètres chargés avec succès.")
+    except Exception as e:
+        st.error(f"Erreur lors du parsing : {e}")
+
+def display_sidebar_filters():
+    """Affiche les filtres dans la sidebar"""
+    with st.sidebar:
+        st.header("Filtres")
+
+        st.markdown("### 📎 Charger une configuration via URL ou JSON")
+        json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, 
+                                 help="Collez une chaîne JSON valide")
+
+        if st.button("🔄 Charger les paramètres"):
+            load_filters_from_json(json_input)
+
+        # Filtres de base
         start_date = st.date_input("Date de début", value=datetime.date(2022, 1, 1))
         end_date = st.date_input("Date de fin", value=datetime.date.today())
 
+        # Catégories
         categories = fetch("/categories")
         all_categories = ["ALL"] + [c["category"] for c in categories.get("categories", [])]
         category = st.selectbox("Catégorie", all_categories)
 
+        # Sous-catégories
         subcategory_options = ["ALL"]
         if category != "ALL":
             for cat in categories.get("categories", []):
@@ -285,6 +317,7 @@ with st.sidebar:
                     subcategory_options += cat["subcategories"]
         subcategory = st.selectbox("Sous-catégorie", subcategory_options)
 
+        # Marques
         brands_params = {}
         if category != "ALL":
             brands_params["category"] = category
@@ -293,10 +326,12 @@ with st.sidebar:
         brands = fetch("/brands", brands_params)
         brand = st.multiselect("Marques", brands.get("brands", []))
 
+        # Pays
         countries = fetch("/countries")
         all_countries = ["ALL"] + countries.get("countries", [])
         country = st.multiselect("Pays", all_countries)
 
+        # Sources
         source_params = {}
         if country and country[0] != "ALL":
             source_params["country"] = country[0]
@@ -304,10 +339,12 @@ with st.sidebar:
         all_sources = ["ALL"] + sources.get("sources", [])
         source = st.multiselect("Sources", all_sources)
 
+        # Markets
         markets = fetch("/markets")
         all_markets = ["ALL"] + markets.get("markets", [])
         market = st.multiselect("Markets", all_markets)
 
+        # Attributs
         attribute_data = fetch_attributes_dynamic(category, subcategory, brand)
         attribute_options = attribute_data.get("attributes", [])
         attributes = st.multiselect("Attributs", attribute_options)
@@ -330,58 +367,32 @@ with st.sidebar:
                 "attributes_negative": attributes_negative
             }
 
-      if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
-        st.info("Appliquez les filtres pour afficher les données.")
-        return
-    
-        filters = st.session_state.filters
-        params = {
-            "start-date": filters["start_date"],
-            "end-date": filters["end_date"]
-        }
-        
-        if filters["category"] != "ALL":
-            params["category"] = filters["category"]
-        if filters["subcategory"] != "ALL":
-            params["subcategory"] = filters["subcategory"]
-        if filters["brand"]:
-            params["brand"] = ",".join(filters["brand"])
-        if filters["country"] and "ALL" not in filters["country"]:
-            params["country"] = ",".join(filters["country"])
-        if filters["source"] and "ALL" not in filters["source"]:
-            params["source"] = ",".join(filters["source"])
-        if filters["market"] and "ALL" not in filters["market"]:
-            params["market"] = ",".join(filters["market"])
-        if filters["attributes"]:
-            params["attribute"] = ",".join(filters["attributes"])
-        if filters["attributes_positive"]:
-            params["attribute-positive"] = ",".join(filters["attributes_positive"])
-        if filters["attributes_negative"]:
-            params["attribute-negative"] = ",".join(filters["attributes_negative"])
-        
-        st.markdown("## 🧾 Résumé des filtres appliqués")
-        st.markdown(f"- **Dates** : du `{filters['start_date']}` au `{filters['end_date']}`")
-        st.markdown(f"- **Catégorie** : `{filters['category']}` | **Sous-catégorie** : `{filters['subcategory']}`")
-        st.markdown(f"- **Marques** : `{', '.join(filters['brand']) if filters['brand'] else 'Toutes'}`")
-        st.markdown(f"- **Pays** : `{', '.join(filters['country']) if filters['country'] and 'ALL' not in filters['country'] else 'Tous'}`")
-        st.markdown(f"- **Sources** : `{', '.join(filters['source']) if filters['source'] and 'ALL' not in filters['source'] else 'Toutes'}`")
-        st.markdown(f"- **Markets** : `{', '.join(filters['market']) if filters['market'] and 'ALL' not in filters['market'] else 'Tous'}`")
-        st.markdown(f"- **Attributs** : `{', '.join(filters['attributes'])}`")
-        st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
-        st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
-    
+def display_filter_summary():
+    """Affiche le résumé des filtres appliqués"""
+    filters = st.session_state.filters
+    st.markdown("## 🧾 Résumé des filtres appliqués")
+    st.markdown(f"- **Dates** : du `{filters['start_date']}` au `{filters['end_date']}`")
+    st.markdown(f"- **Catégorie** : `{filters['category']}` | **Sous-catégorie** : `{filters['subcategory']}`")
+    st.markdown(f"- **Marques** : `{', '.join(filters['brand']) if filters['brand'] else 'Toutes'}`")
+    st.markdown(f"- **Pays** : `{', '.join(filters['country']) if filters['country'] and 'ALL' not in filters['country'] else 'Tous'}`")
+    st.markdown(f"- **Sources** : `{', '.join(filters['source']) if filters['source'] and 'ALL' not in filters['source'] else 'Toutes'}`")
+    st.markdown(f"- **Markets** : `{', '.join(filters['market']) if filters['market'] and 'ALL' not in filters['market'] else 'Tous'}`")
+    st.markdown(f"- **Attributs** : `{', '.join(filters['attributes'])}`")
+    st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
+    st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
-    # 📋 Section : Produits par marque selon les filtres appliqués
+def display_products_by_brand():
+    """Affiche les produits filtrés par marque"""
+    filters = st.session_state.filters
+    
     st.markdown("---")
     st.header("📦 Produits par marque selon les filtres appliqués")
     
     if st.checkbox("📋 Afficher les produits filtrés par marque"):
         with st.spinner("Chargement des produits par marque avec les filtres..."):
             product_rows = []
-    
-            # Option facultative pour afficher le nombre d'avis
             load_reviews_count = st.checkbox("📈 Inclure le nombre d'avis par produit", value=False)
-    
+
             for i, brand in enumerate(filters["brand"]):
                 st.write(f"🔍 {i+1}/{len(filters['brand'])} : {brand}")
                 params = {
@@ -399,26 +410,24 @@ with st.sidebar:
                     params["source"] = ",".join(filters["source"])
                 if filters["market"] and "ALL" not in filters["market"]:
                     params["market"] = ",".join(filters["market"])
-    
-                # Récupération des produits pour cette marque
+
                 products_data = fetch_cached("/products", params)
-    
+
                 for product in products_data.get("products", []):
                     product_info = {"Marque": brand, "Produit": product}
-    
+
                     if load_reviews_count:
                         metric_params = params.copy()
                         metric_params["product"] = product
                         metrics = fetch("/metrics", metric_params)
                         nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
                         product_info["Nombre d'avis"] = nb_reviews
-    
+
                     product_rows.append(product_info)
-    
+
             if product_rows:
                 df_filtered_products = pd.DataFrame(product_rows)
                 st.dataframe(df_filtered_products)
-    
                 st.download_button(
                     "⬇️ Télécharger la liste filtrée",
                     df_filtered_products.to_csv(index=False),
@@ -428,14 +437,18 @@ with st.sidebar:
             else:
                 st.warning("Aucun produit trouvé avec ces filtres.")
 
+def display_product_selection():
+    """Affiche la sélection de produits avec interface interactive"""
+    filters = st.session_state.filters
     product_info = {}
     product_data = []
-    selected_products = []  # ✅ Ajouté ici pour éviter UnboundLocalError
+    
     if filters["brand"]:
         with st.spinner("Chargement des produits par marque..."):
             for i, b in enumerate(filters["brand"]):
                 st.write(f"🔎 {i+1}/{len(filters['brand'])} : {b}")
-                products = fetch_products_by_brand(b, filters["category"], filters["subcategory"], filters["start_date"], filters["end_date"])
+                products = fetch_products_by_brand(b, filters["category"], filters["subcategory"], 
+                                                 filters["start_date"], filters["end_date"])
                 if products and products.get("products"):
                     for p in products["products"]:
                         label = f"{b} > {p}"
@@ -444,10 +457,6 @@ with st.sidebar:
 
     if product_data:
         st.subheader("📊 Produits disponibles")
-        
-        # Initialiser la sélection dans session_state si nécessaire
-        if "selected_product_ids" not in st.session_state:
-            st.session_state.selected_product_ids = []
         
         # Option pour charger le nombre d'avis
         load_reviews_count = st.checkbox(
@@ -475,7 +484,6 @@ with st.sidebar:
                     nb_reviews = metrics.get("nbDocs", 0) if metrics else 0
                     product_data[i]["Nombre d'avis"] = nb_reviews
         else:
-            # Ajouter une colonne vide ou un placeholder si pas de chargement
             for i, row in enumerate(product_data):
                 product_data[i]["Nombre d'avis"] = "Non chargé"
         
@@ -489,11 +497,6 @@ with st.sidebar:
         else:
             filtered_df = df_products
         
-        # Trier le DataFrame (par défaut par nombre d'avis, décroissant)
-        if "sort_column" not in st.session_state:
-            st.session_state.sort_column = "Nombre d'avis"
-            st.session_state.sort_ascending = False
-            
         # Boutons de tri
         col1, col2, col3 = st.columns([2, 2, 2])
         with col1:
@@ -526,14 +529,10 @@ with st.sidebar:
         with header_col4:
             st.write("**Nombre d'avis**")
 
-        # 🔁 Liste des produits visibles à l'écran
+        # Liste des produits visibles à l'écran
         visible_product_ids = list(filtered_df["Produit"].values)
         
-        # 🔁 Initialisation du state
-        if "selected_product_ids" not in st.session_state:
-            st.session_state.selected_product_ids = []
-        
-        # 🔘 Interface de sélection groupée
+        # Interface de sélection groupée
         col_sel_all, col_apply_sel, col_deselect_all = st.columns([1, 2, 2])
         with col_sel_all:
             select_all = st.checkbox("✅ Tout sélectionner les produits affichés", key="select_all_toggle")
@@ -553,9 +552,7 @@ with st.sidebar:
             if st.button("❌ Tout désélectionner"):
                 st.session_state.selected_product_ids = []
 
-
-        
-        # 🔘 Affichage ligne par ligne avec checkbox
+        # Affichage ligne par ligne avec checkbox
         for index, row in filtered_df.iterrows():
             product_id = row["Produit"]
             
@@ -564,7 +561,7 @@ with st.sidebar:
                 is_selected = st.checkbox(
                     "", 
                     value=product_id in st.session_state.selected_product_ids,
-                    key=f"check_{index}_{product_id}"  # ✅ Clé unique
+                    key=f"check_{index}_{product_id}"
                 )
             with col2:
                 st.write(row["Marque"])
@@ -573,27 +570,55 @@ with st.sidebar:
             with col4:
                 st.write(f"{row['Nombre d\'avis']}")
         
-            # 🔄 Mise à jour à la volée
+            # Mise à jour à la volée
             if is_selected and product_id not in st.session_state.selected_product_ids:
                 st.session_state.selected_product_ids.append(product_id)
             elif not is_selected and product_id in st.session_state.selected_product_ids:
                 st.session_state.selected_product_ids.remove(product_id)
 
-
-        
-        # 🧾 Résumé sélection
+        # Résumé sélection
         st.write("---")
         selected_products = st.session_state.selected_product_ids
         if selected_products:
             st.write(f"**{len(selected_products)} produits sélectionnés** : {', '.join(selected_products)}")
         else:
             st.write("**Aucun produit sélectionné.**")
+            
+        return selected_products
+    
+    return []
 
+def build_export_params(filters, selected_products):
+    """Construit les paramètres d'export à partir des filtres et produits sélectionnés"""
+    params = {
+        "start-date": filters["start_date"],
+        "end-date": filters["end_date"]
+    }
     
-    st.markdown("---")
-    st.subheader("Disponibilité des données")
+    if filters["category"] != "ALL":
+        params["category"] = filters["category"]
+    if filters["subcategory"] != "ALL":
+        params["subcategory"] = filters["subcategory"]
+    if filters["brand"]:
+        params["brand"] = ",".join(filters["brand"])
+    if filters["country"] and "ALL" not in filters["country"]:
+        params["country"] = ",".join(filters["country"])
+    if filters["source"] and "ALL" not in filters["source"]:
+        params["source"] = ",".join(filters["source"])
+    if filters["market"] and "ALL" not in filters["market"]:
+        params["market"] = ",".join(filters["market"])
+    if filters["attributes"]:
+        params["attribute"] = ",".join(filters["attributes"])
+    if filters["attributes_positive"]:
+        params["attribute-positive"] = ",".join(filters["attributes_positive"])
+    if filters["attributes_negative"]:
+        params["attribute-negative"] = ",".join(filters["attributes_negative"])
+    if selected_products:
+        params["product"] = ",".join(selected_products)
     
-    # Mise à jour des paramètres avec les produits sélectionnés
+    return params
+	
+	# Mise à jour des paramètres avec les produits sélectionnés
     if selected_products:
         params["product"] = ",".join(selected_products)
     
@@ -982,7 +1007,6 @@ with st.sidebar:
                             st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
                         except Exception as e:
                             st.warning(f"Erreur format plat : {e}")
-
 
 if st.session_state.get("filters"):
     import json
