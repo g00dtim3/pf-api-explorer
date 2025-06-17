@@ -491,7 +491,10 @@ def display_sidebar_filters():
                 # Estimation du nombre de produits à charger
                 total_products_estimate = 0
                 with st.spinner("Estimation du nombre de produits..."):
-                    for brand in st.session_state.filters["brand"][:3]:  # Échantillon des 3 premières marques
+                    # Faire une estimation groupée pour éviter trop d'appels API
+                    sample_brands = st.session_state.filters["brand"][:3]  # Échantillon de 3 marques max
+                    
+                    for brand in sample_brands:
                         products = fetch_products_by_brand(
                             brand, 
                             st.session_state.filters["category"], 
@@ -503,12 +506,30 @@ def display_sidebar_filters():
                             total_products_estimate += len(products["products"])
                 
                 # Extrapoler pour toutes les marques
-                if len(st.session_state.filters["brand"]) > 3:
-                    avg_products_per_brand = total_products_estimate / min(3, len(st.session_state.filters["brand"]))
+                if len(st.session_state.filters["brand"]) > len(sample_brands):
+                    avg_products_per_brand = total_products_estimate / len(sample_brands) if sample_brands else 0
                     total_products_estimate = int(avg_products_per_brand * len(st.session_state.filters["brand"]))
                 
                 if total_products_estimate > 500:
                     st.warning(f"⚠️ Estimation : ~{total_products_estimate} produits à charger. Cela peut prendre du temps et consommer du quota API.")
+                    
+                    # Estimation du nombre de reviews pour comparaison
+                    with st.spinner("Estimation du volume de reviews..."):
+                        estimation_params = {
+                            "brand": ",".join(st.session_state.filters["brand"]),
+                            "start-date": st.session_state.filters["start_date"],
+                            "end-date": st.session_state.filters["end_date"]
+                        }
+                        if st.session_state.filters["category"] != "ALL":
+                            estimation_params["category"] = st.session_state.filters["category"]
+                        if st.session_state.filters["subcategory"] != "ALL":
+                            estimation_params["subcategory"] = st.session_state.filters["subcategory"]
+                        
+                        total_reviews_metrics = fetch("/metrics", estimation_params)
+                        total_reviews = total_reviews_metrics.get("nbDocs", 0) if total_reviews_metrics else 0
+                        
+                        st.info(f"💡 Ces marques représentent ~{total_reviews:,} reviews au total")
+                    
                     if st.button("🔄 Changer pour l'export en masse", key="switch_to_bulk"):
                         st.session_state.export_strategy = "🚀 Export en masse par marque (recommandé pour beaucoup de produits)"
                         st.rerun()
@@ -1232,35 +1253,63 @@ def display_bulk_export_interface():
         # Estimation du volume
         if filters.get("brand"):
             st.markdown("### 📊 Estimation du volume")
-            total_estimated = 0
             
             with st.spinner("Estimation du volume total..."):
-                for brand in filters["brand"]:
-                    brand_params = {
-                        "brand": brand,
-                        "start-date": filters["start_date"],
-                        "end-date": filters["end_date"]
-                    }
-                    
-                    # Ajouter les autres filtres
-                    if filters["category"] != "ALL":
-                        brand_params["category"] = filters["category"]
-                    if filters["subcategory"] != "ALL":
-                        brand_params["subcategory"] = filters["subcategory"]
-                    if filters["country"] and "ALL" not in filters["country"]:
-                        brand_params["country"] = ",".join(filters["country"])
-                    if filters["source"] and "ALL" not in filters["source"]:
-                        brand_params["source"] = ",".join(filters["source"])
-                    if filters["market"] and "ALL" not in filters["market"]:
-                        brand_params["market"] = ",".join(filters["market"])
-                    
-                    metrics = fetch("/metrics", brand_params)
-                    brand_count = metrics.get("nbDocs", 0) if metrics else 0
-                    total_estimated += brand_count
-                    
-                    st.write(f"• **{brand}** : {brand_count:,} reviews")
-            
-            st.success(f"**Total estimé : {total_estimated:,} reviews** pour {len(filters['brand'])} marque(s)")
+                # Construire les paramètres pour l'estimation groupée (comme l'API directe)
+                estimation_params = {
+                    "brand": ",".join(filters["brand"]),  # Toutes les marques en une fois
+                    "start-date": filters["start_date"],
+                    "end-date": filters["end_date"]
+                }
+                
+                # Ajouter les autres filtres
+                if filters["category"] != "ALL":
+                    estimation_params["category"] = filters["category"]
+                if filters["subcategory"] != "ALL":
+                    estimation_params["subcategory"] = filters["subcategory"]
+                if filters["country"] and "ALL" not in filters["country"]:
+                    estimation_params["country"] = ",".join(filters["country"])
+                if filters["source"] and "ALL" not in filters["source"]:
+                    estimation_params["source"] = ",".join(filters["source"])
+                if filters["market"] and "ALL" not in filters["market"]:
+                    estimation_params["market"] = ",".join(filters["market"])
+                if filters["attributes"]:
+                    estimation_params["attribute"] = ",".join(filters["attributes"])
+                if filters["attributes_positive"]:
+                    estimation_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                if filters["attributes_negative"]:
+                    estimation_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                
+                # Appel API groupé pour le total
+                metrics = fetch("/metrics", estimation_params)
+                total_estimated = metrics.get("nbDocs", 0) if metrics else 0
+                
+                # Affichage du total groupé
+                st.success(f"**Total estimé : {total_estimated:,} reviews** pour {len(filters['brand'])} marque(s)")
+                
+                # Optionnel : Affichage détaillé par marque (plus lent mais informatif)
+                if st.checkbox("📋 Voir le détail par marque", key="show_brand_details"):
+                    with st.spinner("Détail par marque..."):
+                        st.markdown("#### Détail par marque :")
+                        brand_details = []
+                        
+                        for brand in filters["brand"]:
+                            brand_params = estimation_params.copy()
+                            brand_params["brand"] = brand  # Une seule marque
+                            
+                            brand_metrics = fetch("/metrics", brand_params)
+                            brand_count = brand_metrics.get("nbDocs", 0) if brand_metrics else 0
+                            brand_details.append({"Marque": brand, "Reviews": brand_count})
+                        
+                        # Affichage en tableau
+                        df_details = pd.DataFrame(brand_details)
+                        st.dataframe(df_details)
+                        
+                        # Vérification de cohérence
+                        sum_individual = df_details["Reviews"].sum()
+                        if sum_individual != total_estimated:
+                            st.warning(f"⚠️ Différence détectée : Total groupé ({total_estimated:,}) ≠ Somme individuelle ({sum_individual:,})")
+                            st.info("💡 Cela peut être normal si des reviews mentionnent plusieurs marques")
             
             if bulk_mode == "Aperçu rapide (100 reviews max)":
                 actual_export = min(100, total_estimated)
