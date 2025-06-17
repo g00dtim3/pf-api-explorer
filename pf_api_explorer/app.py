@@ -453,7 +453,141 @@ def display_sidebar_filters():
                 "attributes_negative": attributes_negative
             }
 
-def display_filter_summary():
+        # Switch pour le type d'export - APRÈS l'application des filtres
+        if st.session_state.get("apply_filters") and st.session_state.get("filters", {}).get("brand"):
+            st.markdown("---")
+            st.markdown("### 🔀 Mode d'export")
+            
+            export_strategy = st.radio(
+                "Stratégie d'export",
+                [
+                    "🚀 Export en masse par marque (recommandé pour beaucoup de produits)",
+                    "🎯 Export par sélection de produits (précis)"
+                ],
+                key="export_strategy_choice",
+                help="Choisissez dès maintenant pour éviter le chargement inutile de listes de produits"
+            )
+            
+            st.session_state.export_strategy = export_strategy
+            
+            # Affichage d'informations selon la stratégie
+            if "🚀 Export en masse" in export_strategy:
+                st.success("⚡ Mode rapide sélectionné : Pas de chargement de liste de produits")
+                st.info(f"Exportera toutes les reviews pour : {', '.join(st.session_state.filters['brand'])}")
+            else:
+                st.info("🔍 Mode précis sélectionné : La liste des produits va être chargée")
+                
+                # Estimation du nombre de produits à charger
+                total_products_estimate = 0
+                with st.spinner("Estimation du nombre de produits..."):
+                    for brand in st.session_state.filters["brand"][:3]:  # Échantillon des 3 premières marques
+                        products = fetch_products_by_brand(
+                            brand, 
+                            st.session_state.filters["category"], 
+                            st.session_state.filters["subcategory"], 
+                            st.session_state.filters["start_date"], 
+                            st.session_state.filters["end_date"]
+                        )
+                        if products and products.get("products"):
+                            total_products_estimate += len(products["products"])
+                
+                # Extrapoler pour toutes les marques
+                if len(st.session_state.filters["brand"]) > 3:
+                    avg_products_per_brand = total_products_estimate / min(3, len(st.session_state.filters["brand"]))
+                    total_products_estimate = int(avg_products_per_brand * len(st.session_state.filters["brand"]))
+                
+                if total_products_estimate > 500:
+                    st.warning(f"⚠️ Estimation : ~{total_products_estimate} produits à charger. Cela peut prendre du temps et consommer du quota API.")
+                    if st.button("🔄 Changer pour l'export en masse", key="switch_to_bulk"):
+                        st.session_state.export_strategy = "🚀 Export en masse par marque (recommandé pour beaucoup de produits)"
+                        st.experimental_rerun()
+                else:
+                    st.success(f"✅ Estimation : ~{total_products_estimate} produits à charger")
+
+def display_export_interface():
+    """Affiche l'interface d'export selon la stratégie choisie"""
+    if not st.session_state.get("export_strategy"):
+        st.warning("⚠️ Veuillez d'abord choisir une stratégie d'export dans la sidebar")
+        return
+    
+    strategy = st.session_state.export_strategy
+    
+    if "🚀 Export en masse" in strategy:
+        # Export en masse direct
+        st.markdown("---")
+        st.header("🚀 Export en masse par marque")
+        display_bulk_export_interface()
+        
+    else:
+        # Export par sélection de produits
+        st.markdown("---")
+        st.header("🎯 Sélection de produits")
+        
+        # Afficher un récapitulatif avant le chargement
+        filters = st.session_state.filters
+        st.info(f"📊 Chargement des produits pour {len(filters['brand'])} marque(s) : {', '.join(filters['brand'])}")
+        
+        if st.button("▶️ Charger la liste des produits", key="load_products_list"):
+            with st.spinner("Chargement en cours..."):
+                selected_products = display_product_selection()
+                
+                # Interface d'export classique
+                st.markdown("---")
+                display_reviews_export_interface(st.session_state.filters, selected_products)
+        else:
+            st.markdown("""
+            💡 **Conseil** : Cliquez sur "▶️ Charger la liste des produits" pour voir tous les produits disponibles.
+            
+            ⚠️ **Attention** : Avec beaucoup de marques, cela peut prendre plusieurs minutes et consommer votre quota API.
+            """)
+
+def main():
+    """Fonction principale de l'application"""
+    st.title("🔍 Explorateur API Ratings & Reviews")
+    
+    # Affichage des quotas en header
+    with st.expander("📊 Quotas API", expanded=False):
+        display_quotas()
+    
+    # Sidebar avec filtres
+    display_sidebar_filters()
+    
+    # Interface principale
+    if st.session_state.get("apply_filters") and st.session_state.get("filters"):
+        # Affichage du résumé des filtres
+        display_filter_summary()
+        
+        # Affichage des produits par marque (optionnel)
+        display_products_by_brand()
+        
+        # Interface d'export selon la stratégie
+        display_export_interface()
+        
+        # Affichage des résultats si disponibles
+        if st.session_state.all_docs:
+            st.markdown("---")
+            display_reviews_results()
+        
+        # Configuration d'export réutilisable
+        display_export_configuration()
+        
+    else:
+        st.markdown("""
+        ## 👋 Bienvenue dans l'Explorateur API Ratings & Reviews
+        
+        Pour commencer :
+        1. **Configurez vos filtres** dans la barre latérale gauche
+        2. **Appliquez les filtres** en cliquant sur "✅ Appliquer les filtres"
+        3. **Choisissez votre stratégie d'export** :
+           - 🚀 **Export en masse** : Rapide, idéal pour beaucoup de produits
+           - 🎯 **Export par sélection** : Précis, pour des choix spécifiques
+        4. **Exportez vos reviews** avec les options disponibles
+        
+        💡 **Astuce** : Vous pouvez charger une configuration existante en collant un JSON dans la zone de configuration.
+        """)
+
+if __name__ == "__main__":
+    main()
     """Affiche le résumé des filtres appliqués"""
     filters = st.session_state.filters
     st.markdown("## 🧾 Résumé des filtres appliqués")
