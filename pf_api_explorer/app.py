@@ -1021,8 +1021,3 @@ if st.session_state.get("filters"):
     }
     st.code(json.dumps(export_preset, indent=2), language="json")
     st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
-
-
-
-if __name__ == "__main__":
-    main()
