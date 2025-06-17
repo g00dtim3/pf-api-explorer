@@ -330,22 +330,35 @@ with st.sidebar:
                 "attributes_negative": attributes_negative
             }
 
-    if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
+   if not st.session_state.get("apply_filters") or "filters" not in st.session_state:
         st.info("Appliquez les filtres pour afficher les données.")
+        return
 
-    if st.session_state.get("filters"):
-        import json
-        export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
-        export_preset = {
-            "start-date": str(st.session_state.filters["start_date"]),
-            "end-date": str(st.session_state.filters["end_date"]),
-            "brand": ",".join(st.session_state.filters["brand"]),
-            "category": st.session_state.filters.get("category", "ALL"),
-            "subcategory": st.session_state.filters.get("subcategory", "ALL"),
-            "token": export_token
-        }
-        st.code(json.dumps(export_preset, indent=2), language="json")
-        st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+    filters = st.session_state.filters
+    params = {
+        "start-date": filters["start_date"],
+        "end-date": filters["end_date"]
+    }
+    if filters["category"] != "ALL": params["category"] = filters["category"]
+    if filters["subcategory"] != "ALL": params["subcategory"] = filters["subcategory"]
+    if filters["brand"]: params["brand"] = ",".join(filters["brand"])
+    if filters["country"] and "ALL" not in filters["country"]: params["country"] = ",".join(filters["country"])
+    if filters["source"] and "ALL" not in filters["source"]: params["source"] = ",".join(filters["source"])
+    if filters["market"] and "ALL" not in filters["market"]: params["market"] = ",".join(filters["market"])
+    if filters["attributes"]: params["attribute"] = ",".join(filters["attributes"])
+    if filters["attributes_positive"]: params["attribute-positive"] = ",".join(filters["attributes_positive"])
+    if filters["attributes_negative"]: params["attribute-negative"] = ",".join(filters["attributes_negative"])
+
+    st.markdown("## 🧾 Résumé des filtres appliqués")
+    st.markdown(f"- **Dates** : du `{filters['start_date']}` au `{filters['end_date']}`")
+    st.markdown(f"- **Catégorie** : `{filters['category']}` | **Sous-catégorie** : `{filters['subcategory']}`")
+    st.markdown(f"- **Marques** : `{', '.join(filters['brand']) if filters['brand'] else 'Toutes'}`")
+    st.markdown(f"- **Pays** : `{', '.join(filters['country']) if filters['country'] and 'ALL' not in filters['country'] else 'Tous'}`")
+    st.markdown(f"- **Sources** : `{', '.join(filters['source']) if filters['source'] and 'ALL' not in filters['source'] else 'Toutes'}`")
+    st.markdown(f"- **Markets** : `{', '.join(filters['market']) if filters['market'] and 'ALL' not in filters['market'] else 'Tous'}`")
+    st.markdown(f"- **Attributs** : `{', '.join(filters['attributes'])}`")
+    st.markdown(f"- **Attributs positifs** : `{', '.join(filters['attributes_positive'])}`")
+    st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
     # 📋 Section : Produits par marque selon les filtres appliqués
     st.markdown("---")
@@ -958,6 +971,22 @@ with st.sidebar:
                             st.download_button("📃 Télécharger le format à plat", flat_csv_full, file_name=flat_full_filename, mime="text/csv")
                         except Exception as e:
                             st.warning(f"Erreur format plat : {e}")
+
+
+if st.session_state.get("filters"):
+    import json
+    export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
+    export_preset = {
+        "start-date": str(st.session_state.filters["start_date"]),
+        "end-date": str(st.session_state.filters["end_date"]),
+        "brand": ",".join(st.session_state.filters["brand"]),
+        "category": st.session_state.filters.get("category", "ALL"),
+        "subcategory": st.session_state.filters.get("subcategory", "ALL"),
+        "token": export_token
+    }
+    st.code(json.dumps(export_preset, indent=2), language="json")
+    st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+
 
 
 if __name__ == "__main__":
