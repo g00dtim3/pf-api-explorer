@@ -1129,14 +1129,269 @@ def main():
         # Affichage des produits par marque
         display_products_by_brand()
         
-        # Sélection des produits
-        st.markdown("---")
-        st.header("🎯 Sélection des produits")
-        selected_products = display_product_selection()
+def display_bulk_export_interface():
+    """Interface d'export en masse par marque"""
+    st.markdown("---")
+    st.header("🚀 Export en masse par marque")
+    
+    filters = st.session_state.filters
+    
+    # Options d'export en masse
+    with st.expander("📦 Options d'export en masse", expanded=True):
+        st.markdown("""
+        **Export en masse** : Récupère toutes les reviews pour les marques sélectionnées **sans** avoir besoin de sélectionner les produits individuellement.
         
-        # Interface d'export des reviews (affichée même sans produits sélectionnés)
-        st.markdown("---")
-        display_reviews_export_interface(st.session_state.filters, selected_products)
+        ⚡ **Avantages :**
+        - Pas d'appels API pour chaque produit individuel
+        - Export rapide de milliers de reviews
+        - Idéal pour des analyses globales par marque
+        """)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            bulk_rows_per_page = st.number_input(
+                "Reviews par page (bulk)",
+                min_value=10,
+                max_value=1000,
+                value=500,
+                step=50,
+                help="Plus élevé = moins d'appels API mais plus de mémoire"
+            )
+        
+        with col2:
+            bulk_use_random = st.checkbox("Randomiser les résultats (bulk)")
+            if bulk_use_random:
+                bulk_random_seed = st.number_input(
+                    "Seed aléatoire (bulk)", 
+                    min_value=1, 
+                    max_value=9999, 
+                    value=42
+                )
+            else:
+                bulk_random_seed = None
+        
+        # Mode d'export
+        bulk_mode = st.radio(
+            "Mode d'export en masse",
+            ["Aperçu rapide (100 reviews max)", "Export complet par marque"],
+            key="bulk_export_mode"
+        )
+        
+        # Estimation du volume
+        if filters.get("brand"):
+            st.markdown("### 📊 Estimation du volume")
+            total_estimated = 0
+            
+            with st.spinner("Estimation du volume total..."):
+                for brand in filters["brand"]:
+                    brand_params = {
+                        "brand": brand,
+                        "start-date": filters["start_date"],
+                        "end-date": filters["end_date"]
+                    }
+                    
+                    # Ajouter les autres filtres
+                    if filters["category"] != "ALL":
+                        brand_params["category"] = filters["category"]
+                    if filters["subcategory"] != "ALL":
+                        brand_params["subcategory"] = filters["subcategory"]
+                    if filters["country"] and "ALL" not in filters["country"]:
+                        brand_params["country"] = ",".join(filters["country"])
+                    if filters["source"] and "ALL" not in filters["source"]:
+                        brand_params["source"] = ",".join(filters["source"])
+                    if filters["market"] and "ALL" not in filters["market"]:
+                        brand_params["market"] = ",".join(filters["market"])
+                    
+                    metrics = fetch("/metrics", brand_params)
+                    brand_count = metrics.get("nbDocs", 0) if metrics else 0
+                    total_estimated += brand_count
+                    
+                    st.write(f"• **{brand}** : {brand_count:,} reviews")
+            
+            st.success(f"**Total estimé : {total_estimated:,} reviews** pour {len(filters['brand'])} marque(s)")
+            
+            if bulk_mode == "Aperçu rapide (100 reviews max)":
+                actual_export = min(100, total_estimated)
+                st.info(f"Mode aperçu : {actual_export} reviews seront exportées")
+            else:
+                st.info(f"Export complet : {total_estimated:,} reviews seront exportées")
+        
+        # Bouton de lancement
+        if st.button("🚀 Lancer l'export en masse", key="launch_bulk_export"):
+            if not filters.get("brand"):
+                st.error("❌ Aucune marque sélectionnée pour l'export en masse")
+                return
+            
+            # Construire les paramètres pour l'export en masse
+            bulk_params = {
+                "start-date": filters["start_date"],
+                "end-date": filters["end_date"],
+                "brand": ",".join(filters["brand"])  # Toutes les marques en une fois
+            }
+            
+            # Ajouter les autres filtres
+            if filters["category"] != "ALL":
+                bulk_params["category"] = filters["category"]
+            if filters["subcategory"] != "ALL":
+                bulk_params["subcategory"] = filters["subcategory"]
+            if filters["country"] and "ALL" not in filters["country"]:
+                bulk_params["country"] = ",".join(filters["country"])
+            if filters["source"] and "ALL" not in filters["source"]:
+                bulk_params["source"] = ",".join(filters["source"])
+            if filters["market"] and "ALL" not in filters["market"]:
+                bulk_params["market"] = ",".join(filters["market"])
+            if filters["attributes"]:
+                bulk_params["attribute"] = ",".join(filters["attributes"])
+            if filters["attributes_positive"]:
+                bulk_params["attribute-positive"] = ",".join(filters["attributes_positive"])
+            if filters["attributes_negative"]:
+                bulk_params["attribute-negative"] = ",".join(filters["attributes_negative"])
+            
+            # Paramètres de pagination
+            is_bulk_preview = bulk_mode == "Aperçu rapide (100 reviews max)"
+            
+            if is_bulk_preview:
+                bulk_params["rows"] = min(bulk_rows_per_page, 100)
+            else:
+                bulk_params["rows"] = bulk_rows_per_page
+            
+            if bulk_use_random and bulk_random_seed:
+                bulk_params["random"] = str(bulk_random_seed)
+            
+            # Stocker les paramètres pour les noms de fichiers
+            st.session_state.export_params = bulk_params.copy()
+            st.session_state.is_preview_mode = is_bulk_preview
+            
+            # Lancer l'export
+            execute_bulk_export(bulk_params, is_bulk_preview)
+
+def execute_bulk_export(params, is_preview):
+    """Exécute l'export en masse"""
+    st.markdown("### 🔄 Export en cours...")
+    
+    # Obtenir les métriques totales
+    metrics_result = fetch("/metrics", params)
+    total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+    
+    if total_api_results == 0:
+        st.warning("❌ Aucune review disponible pour cette combinaison")
+        return
+    
+    # Configuration selon le mode
+    if is_preview:
+        expected_total_pages = 1
+        max_reviews = min(100, total_api_results)
+        st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
+    else:
+        rows_per_page = params.get("rows", 500)
+        expected_total_pages = (total_api_results + rows_per_page - 1) // rows_per_page
+        st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results:,} reviews sur {expected_total_pages} pages...")
+    
+    # Interface de progression
+    status_text = st.empty()
+    progress_bar = None if is_preview else st.progress(0)
+    
+    cursor_mark = "*"
+    page_count = 0
+    all_docs = []
+    max_iterations = min(200, expected_total_pages + 10)  # Sécurité
+    
+    # Boucle de récupération
+    try:
+        while page_count < max_iterations:
+            page_count += 1
+            status_text.text(f"📥 Chargement page {page_count}/{expected_total_pages if not is_preview else 1}...")
+            
+            # Paramètres avec cursor
+            current_params = params.copy()
+            current_params["cursorMark"] = cursor_mark
+            
+            # Appel API
+            result = fetch("/reviews", current_params)
+            
+            if not result or not result.get("docs"):
+                st.warning(f"⚠️ Pas de données à la page {page_count}")
+                break
+            
+            docs = result.get("docs", [])
+            all_docs.extend(docs)
+            
+            # Mise à jour progression
+            if progress_bar is not None:
+                progress_percent = min(page_count / expected_total_pages, 1.0) if expected_total_pages > 0 else 1.0
+                progress_bar.progress(progress_percent)
+            
+            # En mode aperçu, on s'arrête après la première page
+            if is_preview:
+                break
+            
+            # Vérifier le cursor suivant
+            next_cursor = result.get("nextCursorMark")
+            if not next_cursor or next_cursor == cursor_mark:
+                break
+            
+            cursor_mark = next_cursor
+            
+            # Limite aperçu
+            if is_preview and len(all_docs) >= 100:
+                break
+    
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'export : {str(e)}")
+        return
+    
+    # Stocker les résultats
+    st.session_state.all_docs = all_docs
+    st.session_state.current_page = 1
+    
+    # Messages finaux
+    mode_text = "aperçu en masse" if is_preview else "export complet en masse"
+    if all_docs:
+        status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs):,} reviews récupérées")
+        st.balloons()  # Célébration pour les gros exports !
+        
+        # Log pour export complet
+        if not is_preview:
+            log_bulk_export(params, len(all_docs))
+        
+    else:
+        status_text.text(f"⚠️ Aucune review récupérée.")
+
+def log_bulk_export(params, nb_reviews):
+    """Enregistre l'export en masse dans le log"""
+    try:
+        log_path = Path("review_exports_log.csv")
+        export_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        brands = params.get("brand", "").split(",") if params.get("brand") else []
+        
+        log_entry = {
+            "product": "BULK_EXPORT_ALL_PRODUCTS",
+            "brand": params.get("brand", ""),
+            "start_date": params.get("start-date"),
+            "end_date": params.get("end-date"),
+            "country": params.get("country", "Tous"),
+            "rows": params.get("rows", 500),
+            "random_seed": params.get("random", None),
+            "nb_reviews": nb_reviews,
+            "export_timestamp": export_date,
+            "export_type": "BULK_BY_BRAND"
+        }
+        
+        new_log_df = pd.DataFrame([log_entry])
+        
+        if log_path.exists():
+            existing_log_df = pd.read_csv(log_path)
+            log_df = pd.concat([existing_log_df, new_log_df], ignore_index=True)
+        else:
+            log_df = new_log_df
+            
+        log_df.to_csv(log_path, index=False)
+        st.success("📝 Export en masse enregistré dans le journal")
+        
+    except Exception as e:
+        st.warning(f"⚠️ Erreur lors de l'enregistrement du log : {str(e)}")
         
         # Affichage des résultats si disponibles
         if st.session_state.all_docs:
