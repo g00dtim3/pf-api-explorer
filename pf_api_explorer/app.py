@@ -235,11 +235,10 @@ def main():
             st.metric("Quota total", result['quota'])
             st.metric("Valable jusqu'au", result['end date'])
 
-    with st.sidebar:
-        st.header("Filtres")
-        st.markdown("### 📎 Charger une configuration via URL ou JSON")
-        json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")
-    
+with st.sidebar:
+    st.header("Filtres")
+    st.markdown("### 📎 Charger une configuration via URL ou JSON")
+    json_input = st.text_area("📥 Collez ici vos paramètres (JSON)", height=150, help="Collez une chaîne JSON valide")    
         if st.button("🔄 Charger les paramètres"):
             try:
                 import json
