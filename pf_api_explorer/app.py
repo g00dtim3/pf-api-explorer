@@ -361,18 +361,18 @@ with st.sidebar:
     st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
     if st.session_state.get("filters"):
-    import json
-    export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
-    export_preset = {
-        "start-date": str(st.session_state.filters["start_date"]),
-        "end-date": str(st.session_state.filters["end_date"]),
-        "brand": ",".join(st.session_state.filters["brand"]),
-        "category": st.session_state.filters.get("category", "ALL"),
-        "subcategory": st.session_state.filters.get("subcategory", "ALL"),
-        "token": export_token
-    }
-    st.code(json.dumps(export_preset, indent=2), language="json")
-    st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
+        import json
+        export_token = st.secrets["api"]["token"] if "api" in st.secrets else "YOUR_TOKEN"
+        export_preset = {
+            "start-date": str(st.session_state.filters["start_date"]),
+            "end-date": str(st.session_state.filters["end_date"]),
+            "brand": ",".join(st.session_state.filters["brand"]),
+            "category": st.session_state.filters.get("category", "ALL"),
+            "subcategory": st.session_state.filters.get("subcategory", "ALL"),
+            "token": export_token
+        }
+        st.code(json.dumps(export_preset, indent=2), language="json")
+        st.markdown("📋 Vous pouvez copier ce bloc et le coller dans la barre de configuration pour relancer cet export plus tard.")
 
     # 📋 Section : Produits par marque selon les filtres appliqués
     st.markdown("---")
