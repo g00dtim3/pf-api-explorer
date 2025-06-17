@@ -263,31 +263,116 @@ def display_quotas():
 def load_filters_from_json(json_input):
     """Charge les filtres depuis un JSON"""
     try:
-        parsed = json.loads(json_input)
+        # Nettoyer l'input avant parsing
+        cleaned_input = json_input.strip()
+        
+        # Tenter de corriger automatiquement quelques erreurs courantes
+        if not cleaned_input.startswith('{'):
+            st.error("❌ Le JSON doit commencer par '{'")
+            return
+        
+        # Essayer de parser d'abord tel quel
+        try:
+            parsed = json.loads(cleaned_input)
+        except json.JSONDecodeError as e:
+            st.error(f"❌ Erreur JSON à la ligne {e.lineno}, position {e.colno}: {e.msg}")
+            st.error("Vérifiez que :")
+            st.error("- Toutes les clés et valeurs sont entre guillemets")
+            st.error("- Il y a des virgules entre chaque paire clé-valeur")
+            st.error("- Les dates sont au format 'YYYY-MM-DD' entre guillemets")
+            st.error("- Pas de virgule après le dernier élément")
+            
+            # Afficher un exemple corrigé
+            st.info("📝 Exemple de JSON valide :")
+            example_json = {
+                "start-date": "2025-01-01",
+                "end-date": "2025-04-30", 
+                "brand": "AVÈNE,aderma,arthrodont,BIODERMA",
+                "category": "bodycare",
+                "subcategory": "body creams & milks",
+                "country": "France",
+                "token": "YOUR_TOKEN"
+            }
+            st.code(json.dumps(example_json, indent=2), language="json")
+            return
         
         # Cast start/end-date si c'est une string
         for k in ["start-date", "end-date"]:
             if isinstance(parsed.get(k), str):
-                parsed[k] = pd.to_datetime(parsed[k]).date()
+                date_str = parsed[k]
+                # Gérer les différents formats de date
+                if date_str.startswith("datetime.date("):
+                    # Extraire les valeurs du format datetime.date(2025, 1, 1)
+                    import re
+                    match = re.search(r'datetime\.date\((\d+),\s*(\d+),\s*(\d+)\)', date_str)
+                    if match:
+                        year, month, day = match.groups()
+                        parsed[k] = datetime.date(int(year), int(month), int(day))
+                    else:
+                        st.warning(f"Format de date non reconnu pour {k}: {date_str}")
+                        parsed[k] = datetime.date.today()
+                else:
+                    try:
+                        parsed[k] = pd.to_datetime(date_str).date()
+                    except:
+                        st.warning(f"Impossible de parser la date {k}: {date_str}")
+                        parsed[k] = datetime.date.today()
+
+        # Nettoyer et valider les marques
+        brand_list = []
+        if parsed.get("brand"):
+            brand_str = parsed["brand"]
+            if isinstance(brand_str, str):
+                # Nettoyer les marques (enlever espaces superflus)
+                brand_list = [brand.strip() for brand in brand_str.split(",") if brand.strip()]
+            elif isinstance(brand_str, list):
+                brand_list = brand_str
+
+        # Nettoyer les autres listes
+        country_list = []
+        if parsed.get("country"):
+            if isinstance(parsed["country"], str):
+                country_list = [c.strip() for c in parsed["country"].split(",") if c.strip()]
+            elif isinstance(parsed["country"], list):
+                country_list = parsed["country"]
+
+        source_list = []
+        if parsed.get("source"):
+            if isinstance(parsed["source"], str):
+                source_list = [s.strip() for s in parsed["source"].split(",") if s.strip()]
+            elif isinstance(parsed["source"], list):
+                source_list = parsed["source"]
+
+        market_list = []
+        if parsed.get("market"):
+            if isinstance(parsed["market"], str):
+                market_list = [m.strip() for m in parsed["market"].split(",") if m.strip()]
+            elif isinstance(parsed["market"], list):
+                market_list = parsed["market"]
 
         # Injecter dans les filtres
         st.session_state.apply_filters = True
         st.session_state.filters = {
-            "start_date": parsed.get("start-date"),
-            "end_date": parsed.get("end-date"),
+            "start_date": parsed.get("start-date", datetime.date(2022, 1, 1)),
+            "end_date": parsed.get("end-date", datetime.date.today()),
             "category": parsed.get("category", "ALL"),
             "subcategory": parsed.get("subcategory", "ALL"),
-            "brand": parsed.get("brand", "").split(",") if parsed.get("brand") else [],
-            "country": parsed.get("country", "").split(",") if parsed.get("country") else [],
-            "source": parsed.get("source", "").split(",") if parsed.get("source") else [],
-            "market": parsed.get("market", "").split(",") if parsed.get("market") else [],
-            "attributes": parsed.get("attributes", []),
-            "attributes_positive": parsed.get("attributes_positive", []),
-            "attributes_negative": parsed.get("attributes_negative", [])
+            "brand": brand_list,
+            "country": country_list,
+            "source": source_list,
+            "market": market_list,
+            "attributes": parsed.get("attributes", []) if isinstance(parsed.get("attributes"), list) else [],
+            "attributes_positive": parsed.get("attributes_positive", []) if isinstance(parsed.get("attributes_positive"), list) else [],
+            "attributes_negative": parsed.get("attributes_negative", []) if isinstance(parsed.get("attributes_negative"), list) else []
         }
+        
+        # Afficher un résumé de ce qui a été chargé
         st.success("✅ Paramètres chargés avec succès.")
+        st.info(f"📊 Résumé : {len(brand_list)} marque(s), du {parsed.get('start-date')} au {parsed.get('end-date')}")
+        
     except Exception as e:
-        st.error(f"Erreur lors du parsing : {e}")
+        st.error(f"❌ Erreur lors du parsing : {e}")
+        st.error("💡 Astuce : Vérifiez que votre JSON est valide sur jsonlint.com")
 
 def display_sidebar_filters():
     """Affiche les filtres dans la sidebar"""
