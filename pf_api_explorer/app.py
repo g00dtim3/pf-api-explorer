@@ -1068,9 +1068,8 @@ def display_reviews_export_interface(filters, selected_products):
 
     # Journal des exports
     if 'log_path' not in locals() or log_path is None:
-        log_path = Path("review_exports_log.csv") # ou votre chemin spécifique
+        log_path = Path("review_exports_log.csv")
 
-    # Convertir en Path si c'est une chaîne
     if isinstance(log_path, str):
         log_path = Path(log_path)
         
@@ -1112,7 +1111,7 @@ def display_reviews_export_interface(filters, selected_products):
             with col4:
                 st.metric("Valable jusqu'au", quotas.get('end date', 'N/A'))
     
-        # ✅ Vérification d'export déjà réalisé, englobant ou identique
+        # Vérification d'export déjà réalisé
         potential_duplicates = []
         if log_path and log_path.exists():
             try:
@@ -1138,39 +1137,46 @@ def display_reviews_export_interface(filters, selected_products):
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
         
-        # Ajouter des options pour l'aperçu et l'export complet
         st.header("🔍 Options d'export")
             
-        # Déterminer l'index du mode d'export (basé sur le mode actuel)
-        export_mode_index = 0 if st.session_state.is_preview_mode else 1
+        # Déterminer l'index du mode d'export
+        export_mode_index = 0 if st.session_state.get('is_preview_mode', True) else 1
             
         # Si l'utilisateur a demandé le passage en mode complet depuis l'aperçu
-        if st.session_state.switch_to_full_export:
+        if st.session_state.get('switch_to_full_export', False):
             export_mode_index = 1
-            st.session_state.switch_to_full_export = False  # Réinitialiser le flag
+            st.session_state.switch_to_full_export = False
                 
         export_mode = st.radio(
             "Mode d'export",
             ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
             index=export_mode_index
-            )
+        )
             
-        # Mettre à jour le mode d'aperçu en fonction du choix utilisateur
+        # Mettre à jour le mode d'aperçu
         st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
+        preview_limit = 50
             
-        preview_limit = 50  # Nombre maximum de reviews pour l'aperçu
-            
+        # 🔒 PROTECTION ANTI-DOUBLE-EXPORT
         if st.button("📅 Lancer " + ("l'aperçu" if st.session_state.is_preview_mode else "l'export complet")):
-            # Réinitialiser la session pour le chargement
+            
+            # ✅ Vérifier si un export est déjà en cours
+            if st.session_state.get('export_in_progress', False):
+                st.warning("⚠️ Un export est déjà en cours. Veuillez patienter.")
+                st.stop()
+            
+            # 🔒 Marquer l'export comme en cours
+            st.session_state.export_in_progress = True
+            
+            # 🧹 Réinitialiser complètement la session
             st.session_state.cursor_mark = "*"
             st.session_state.current_page = 1
-            st.session_state.all_docs = []
-            # Le mode est déjà défini par le radio button
-            st.session_state.export_params = params.copy()  # Stocker les paramètres pour les noms de fichiers
+            st.session_state.all_docs = []  # ✅ Vider explicitement
+            st.session_state.export_params = params.copy()
                 
             params_with_rows = params.copy()
                 
-            # En mode aperçu, on limite le nombre de lignes
+            # Configurer les paramètres selon le mode
             if st.session_state.is_preview_mode:
                 params_with_rows["rows"] = min(int(rows_per_page), preview_limit)
             else:
@@ -1184,92 +1190,100 @@ def display_reviews_export_interface(filters, selected_products):
                 
             if total_api_results == 0:
                 st.warning("Aucune review disponible pour cette combinaison")
+                st.session_state.export_in_progress = False  # 🔓 Libérer le verrou
             else:
-                execute_export_process(params_with_rows, total_api_results, preview_limit)
+                try:
+                    execute_export_process(params_with_rows, total_api_results, preview_limit)
+                finally:
+                    st.session_state.export_in_progress = False  # 🔓 Toujours libérer le verrou
+
 
 def execute_export_process(params_with_rows, total_api_results, preview_limit):
     """Exécute le processus d'export"""
-    # En mode aperçu, ne récupérer qu'une page
+    
+    # 🔒 Double vérification du verrou (sécurité)
+    if st.session_state.get('export_in_progress', False) == False:
+        st.error("❌ Export appelé sans verrou - arrêt pour éviter les doublons")
+        return
+    
+    # 🧹 S'assurer que all_docs est vide (sécurité supplémentaire)
+    if 'all_docs' not in st.session_state:
+        st.session_state.all_docs = []
+    
+    # Debug : vérifier l'état initial
+    initial_docs_count = len(st.session_state.all_docs)
+    if initial_docs_count > 0:
+        st.warning(f"⚠️ ATTENTION: all_docs contenait déjà {initial_docs_count} éléments - réinitialisation")
+        st.session_state.all_docs = []
+    
+    # Configuration selon le mode
     if st.session_state.is_preview_mode:
         expected_total_pages = 1
         max_reviews = min(preview_limit, total_api_results)
         st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
     else:
-        # Calculer le nombre total de pages attendues pour l'export complet
         rows_per_page = params_with_rows.get("rows", 100)
         expected_total_pages = (total_api_results + rows_per_page - 1) // rows_per_page
         st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results} reviews...")
             
     status_text = st.empty()
-    
-    # Afficher une barre de progression seulement en mode export complet
     progress_bar = None if st.session_state.is_preview_mode else st.progress(0)
     
     cursor_mark = "*"
     page_count = 0
-    all_docs = []
     
-    # Ajout d'un mécanisme de sécurité pour éviter les boucles infinies
-    max_iterations = min(100, expected_total_pages + 5)  # Limite raisonnable
+    # ✅ UTILISER DIRECTEMENT st.session_state.all_docs au lieu d'une variable locale
+    max_iterations = min(100, expected_total_pages + 5)
     
-    # Boucle pour récupérer les pages via cursor pagination
     try:
         while page_count < max_iterations:
             page_count += 1
             status_text.text(f"Chargement de la page {page_count}/{expected_total_pages if not st.session_state.is_preview_mode else 1}...")
             
-            # Ajouter le cursor_mark aux paramètres
             current_params = params_with_rows.copy()
             current_params["cursorMark"] = cursor_mark
             
-            # Récupérer la page courante
             result = fetch("/reviews", current_params)
             
-            # Vérifier si le résultat est valide et contient des documents
             if not result or not result.get("docs") or len(result.get("docs", [])) == 0:
                 break
                 
-            # Ajouter les documents à notre collection
+            # ✅ CORRECTION PRINCIPALE : Ajouter directement à session_state
             docs = result.get("docs", [])
-            all_docs.extend(docs)
+            st.session_state.all_docs.extend(docs)  # ✅ Plus de variable locale !
             
-            # Mettre à jour la barre de progression uniquement en mode export complet
+            # Debug : afficher le nombre total après chaque page
+            st.write(f"🔍 Page {page_count}: +{len(docs)} docs, total: {len(st.session_state.all_docs)}")
+            
             if progress_bar is not None:
                 progress_percent = min(page_count / expected_total_pages, 1.0) if expected_total_pages > 0 else 1.0
                 progress_bar.progress(progress_percent)
             
-            # En mode aperçu, on s'arrête après la première page
             if st.session_state.is_preview_mode:
                 break
                 
-            # Vérifier si nous avons un nouveau cursor_mark
             next_cursor = result.get("nextCursorMark")
-            
-            # Si pas de nouveau cursor ou même valeur que précédent, on a terminé
             if not next_cursor or next_cursor == cursor_mark:
                 break
                 
-            # Mise à jour du cursor pour la prochaine itération
             cursor_mark = next_cursor
             
-            # Si nous avons atteint le nombre maximal de reviews en mode aperçu, on s'arrête
-            if st.session_state.is_preview_mode and len(all_docs) >= preview_limit:
+            if st.session_state.is_preview_mode and len(st.session_state.all_docs) >= preview_limit:
                 break
                 
     except Exception as e:
         st.error(f"Erreur lors de la récupération des données: {str(e)}")
         return
-        
-    # Stocker tous les documents récupérés
-    st.session_state.all_docs = all_docs
     
     # Log pour export complet
-    if not st.session_state.is_preview_mode and all_docs:
-        log_standard_export(params_with_rows, len(all_docs))
+    if not st.session_state.is_preview_mode and st.session_state.all_docs:
+        log_standard_export(params_with_rows, len(st.session_state.all_docs))
     
     mode_text = "aperçu" if st.session_state.is_preview_mode else "export complet"
-    if all_docs:
-        status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs)} reviews récupérées sur {page_count} pages.")
+    final_count = len(st.session_state.all_docs)
+    
+    if final_count > 0:
+        status_text.text(f"✅ {mode_text.capitalize()} terminé! {final_count} reviews récupérées sur {page_count} pages.")
     else:
         status_text.text(f"⚠️ Aucune review récupérée. Vérifiez vos filtres.")
 
