@@ -551,21 +551,114 @@ def display_filter_summary():
     st.markdown(f"- **Attributs négatifs** : `{', '.join(filters['attributes_negative'])}`")
 
 def display_products_by_brand():
-    """Affiche les produits filtrés par marque"""
+    """Affiche les produits filtrés par marque avec interface interactive - 3 étapes simples"""
     filters = st.session_state.filters
     
     st.markdown("---")
     st.header("📦 Produits par marque selon les filtres appliqués")
     
-    if st.checkbox("📋 Afficher les produits filtrés par marque"):
-        with st.spinner("Chargement des produits par marque avec les filtres..."):
-            product_rows = []
-            load_reviews_count = st.checkbox("📈 Inclure le nombre d'avis par produit", value=False)
+    # Initialisation des variables de session
+    if "brand_products_cache" not in st.session_state:
+        st.session_state.brand_products_cache = []
+    if "brand_products_loaded" not in st.session_state:
+        st.session_state.brand_products_loaded = False
+    if "brand_reviews_counts_loaded" not in st.session_state:
+        st.session_state.brand_reviews_counts_loaded = False
+    
+    # ÉTAPE 1: Chargement des produits par marque
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📦 Étape 1: Produits par marque")
+        if not st.session_state.brand_products_loaded:
+            if st.button("📋 Charger les produits par marque", key="load_brand_products"):
+                load_brand_products(filters)
+        else:
+            st.success(f"✅ {len(st.session_state.brand_products_cache)} produits chargés")
+            if st.button("🔄 Recharger produits", key="reload_brand_products"):
+                st.session_state.brand_products_loaded = False
+                st.session_state.brand_reviews_counts_loaded = False
+                st.session_state.brand_products_cache = []
+                st.rerun()
+    
+    # ÉTAPE 2: Chargement des compteurs d'avis (optionnel)
+    with col2:
+        st.markdown("### 📈 Étape 2: Compteurs d'avis (optionnel)")
+        if st.session_state.brand_products_loaded:
+            if not st.session_state.brand_reviews_counts_loaded:
+                if st.button("📈 Charger les compteurs d'avis", key="load_brand_counts"):
+                    load_brand_reviews_counts(filters)
+            else:
+                st.success("✅ Compteurs chargés")
+                if st.button("🔄 Recharger compteurs", key="reload_brand_counts"):
+                    load_brand_reviews_counts(filters)
+        else:
+            st.info("Chargez d'abord les produits par marque")
+    
+    # ÉTAPE 3: Affichage et téléchargement
+    if st.session_state.brand_products_loaded and st.session_state.brand_products_cache:
+        st.markdown("### 📊 Étape 3: Consultation des résultats")
+        display_brand_products_table()
 
-            for i, brand in enumerate(filters["brand"]):
-                st.write(f"🔍 {i+1}/{len(filters['brand'])} : {brand}")
+
+def load_brand_products(filters):
+    """Charge la liste des produits par marque"""
+    with st.spinner("Chargement des produits par marque..."):
+        product_rows = []
+        
+        for i, brand in enumerate(filters["brand"]):
+            st.write(f"🔍 {i+1}/{len(filters['brand'])} : {brand}")
+            
+            # Préparation des paramètres
+            params = {
+                "brand": brand,
+                "start-date": filters["start_date"],
+                "end-date": filters["end_date"]
+            }
+            if filters["category"] != "ALL":
+                params["category"] = filters["category"]
+            if filters["subcategory"] != "ALL":
+                params["subcategory"] = filters["subcategory"]
+            if filters["country"] and "ALL" not in filters["country"]:
+                params["country"] = ",".join(filters["country"])
+            if filters["source"] and "ALL" not in filters["source"]:
+                params["source"] = ",".join(filters["source"])
+            if filters["market"] and "ALL" not in filters["market"]:
+                params["market"] = ",".join(filters["market"])
+            
+            # Récupération des produits
+            products_data = fetch_cached("/products", params)
+            
+            for product in products_data.get("products", []):
+                product_info = {
+                    "Marque": brand, 
+                    "Produit": product,
+                    "Nombre d'avis": None  # Sera rempli à l'étape 2 si demandé
+                }
+                product_rows.append(product_info)
+        
+        st.session_state.brand_products_cache = product_rows
+        st.session_state.brand_products_loaded = True
+        st.success(f"✅ {len(product_rows)} produits chargés avec succès!")
+        st.rerun()
+
+
+def load_brand_reviews_counts(filters):
+    """Charge les compteurs d'avis pour les produits par marque"""
+    with st.spinner("Chargement des compteurs d'avis..."):
+        updated_cache = []
+        
+        for i, product_info in enumerate(st.session_state.brand_products_cache):
+            brand = product_info["Marque"]
+            product = product_info["Produit"]
+            
+            if i % 10 == 0:  # Affichage du progrès tous les 10 produits
+                st.write(f"📊 {i+1}/{len(st.session_state.brand_products_cache)} produits traités...")
+            
+            try:
+                # Préparation des paramètres pour les métriques
                 params = {
                     "brand": brand,
+                    "product": product,
                     "start-date": filters["start_date"],
                     "end-date": filters["end_date"]
                 }
@@ -579,48 +672,68 @@ def display_products_by_brand():
                     params["source"] = ",".join(filters["source"])
                 if filters["market"] and "ALL" not in filters["market"]:
                     params["market"] = ",".join(filters["market"])
+                
+                # Ajouter les filtres d'attributs si définis
+                if filters["attributes"]:
+                    params["attribute"] = ",".join(filters["attributes"])
+                if filters["attributes_positive"]:
+                    params["attribute-positive"] = ",".join(filters["attributes_positive"])
+                if filters["attributes_negative"]:
+                    params["attribute-negative"] = ",".join(filters["attributes_negative"])
+                
+                # Récupération des métriques
+                metrics = fetch("/metrics", params)
+                if metrics and isinstance(metrics, dict):
+                    nb_reviews = metrics.get("nbDocs", 0)
+                else:
+                    nb_reviews = "Erreur API"
+                    
+            except Exception as e:
+                st.warning(f"Erreur métrique pour {brand} - {product}: {str(e)}")
+                nb_reviews = "Erreur"
+            
+            # Mise à jour du cache
+            updated_product_info = product_info.copy()
+            updated_product_info["Nombre d'avis"] = nb_reviews
+            updated_cache.append(updated_product_info)
+        
+        st.session_state.brand_products_cache = updated_cache
+        st.session_state.brand_reviews_counts_loaded = True
+        st.success("✅ Compteurs d'avis chargés avec succès!")
+        st.rerun()
 
-                products_data = fetch_cached("/products", params)
 
-                for product in products_data.get("products", []):
-                    product_info = {"Marque": brand, "Produit": product}
-
-                    if load_reviews_count:
-                        try:
-                            metric_params = params.copy()
-                            metric_params["product"] = product
-                            
-                            # Ajouter les filtres d'attributs si définis
-                            if filters["attributes"]:
-                                metric_params["attribute"] = ",".join(filters["attributes"])
-                            if filters["attributes_positive"]:
-                                metric_params["attribute-positive"] = ",".join(filters["attributes_positive"])
-                            if filters["attributes_negative"]:
-                                metric_params["attribute-negative"] = ",".join(filters["attributes_negative"])
-                            
-                            metrics = fetch("/metrics", metric_params)
-                            if metrics and isinstance(metrics, dict):
-                                nb_reviews = metrics.get("nbDocs", 0)
-                            else:
-                                nb_reviews = "Erreur API"
-                            product_info["Nombre d'avis"] = nb_reviews
-                        except Exception as e:
-                            st.warning(f"Erreur métrique pour {brand} - {product}: {str(e)}")
-                            product_info["Nombre d'avis"] = "Erreur"
-
-                    product_rows.append(product_info)
-
-            if product_rows:
-                df_filtered_products = pd.DataFrame(product_rows)
-                st.dataframe(df_filtered_products)
-                st.download_button(
-                    "⬇️ Télécharger la liste filtrée",
-                    df_filtered_products.to_csv(index=False),
-                    file_name="produits_filtrés_par_marque.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("Aucun produit trouvé avec ces filtres.")
+def display_brand_products_table():
+    """Affiche le tableau des produits par marque avec option de téléchargement"""
+    if st.session_state.brand_products_cache:
+        df_filtered_products = pd.DataFrame(st.session_state.brand_products_cache)
+        
+        # Nettoyage du DataFrame si les compteurs ne sont pas chargés
+        if not st.session_state.brand_reviews_counts_loaded:
+            df_filtered_products = df_filtered_products.drop(columns=["Nombre d'avis"])
+        
+        st.dataframe(df_filtered_products, use_container_width=True)
+        
+        # Bouton de téléchargement
+        st.download_button(
+            "⬇️ Télécharger la liste filtrée",
+            df_filtered_products.to_csv(index=False),
+            file_name="produits_filtrés_par_marque.csv",
+            mime="text/csv"
+        )
+        
+        # Statistiques rapides
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total produits", len(df_filtered_products))
+        with col2:
+            st.metric("Marques uniques", df_filtered_products["Marque"].nunique())
+        with col3:
+            if st.session_state.brand_reviews_counts_loaded:
+                total_reviews = df_filtered_products["Nombre d'avis"].sum() if df_filtered_products["Nombre d'avis"].dtype in ['int64', 'float64'] else "N/A"
+                st.metric("Total avis", total_reviews)
+    else:
+        st.warning("Aucun produit trouvé avec ces filtres.")
 
 def display_product_selection():
     """Affiche la sélection de produits avec interface interactive - 3 étapes simples"""
