@@ -954,7 +954,13 @@ def display_reviews_export_interface(filters, selected_products):
     st.markdown("## ⚙️ Paramètres d'export des reviews")
 
     # Journal des exports
-    log_path = Path("review_exports_log.csv")
+    if 'log_path' not in locals() or log_path is None:
+        log_path = Path("review_exports_log.csv") # ou votre chemin spécifique
+
+    # Convertir en Path si c'est une chaîne
+    if isinstance(log_path, str):
+        log_path = Path(log_path)
+        
     if log_path.exists():
         with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
             export_log_df = pd.read_csv(log_path)
@@ -995,7 +1001,7 @@ def display_reviews_export_interface(filters, selected_products):
     
         # ✅ Vérification d'export déjà réalisé, englobant ou identique
         potential_duplicates = []
-        if log_path.exists():
+        if log_path and log_path.exists():
             try:
                 export_log_df = pd.read_csv(log_path)
                 export_log_df["start_date"] = pd.to_datetime(export_log_df["start_date"])
