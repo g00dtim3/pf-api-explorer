@@ -1066,70 +1066,70 @@ def display_reviews_export_interface(filters, selected_products):
 
     st.markdown("## ⚙️ Paramètres d'export des reviews")
 
-   # Journal des exports - Version simplifiée avec mise en forme
-if 'log_path' not in locals() or log_path is None:
-    log_path = Path("review_exports_log.csv")
-if isinstance(log_path, str):
-    log_path = Path(log_path)
-    
-if log_path.exists():
-    with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
-        export_log_df = pd.read_csv(log_path)
+    # Journal des exports - Version simplifiée avec mise en forme
+    if 'log_path' not in locals() or log_path is None:
+        log_path = Path("review_exports_log.csv")
+    if isinstance(log_path, str):
+        log_path = Path(log_path)
         
-        if not export_log_df.empty:
-            # Configuration de l'affichage du dataframe
-            st.dataframe(
-                export_log_df,
-                height=400,  # Hauteur fixe pour éviter les problèmes d'affichage
-                use_container_width=True,  # Utilise toute la largeur available
-                column_config={
-                    "export_timestamp": st.column_config.DatetimeColumn(
-                        "Date d'export",
-                        format="DD/MM/YYYY HH:mm"
-                    ),
-                    "start_date": st.column_config.DateColumn(
-                        "Date début",
-                        format="DD/MM/YYYY"
-                    ),
-                    "end_date": st.column_config.DateColumn(
-                        "Date fin", 
-                        format="DD/MM/YYYY"
-                    ),
-                    "nb_reviews": st.column_config.NumberColumn(
-                        "Nb reviews",
-                        format="%d"
-                    ),
-                    "rows": st.column_config.NumberColumn(
-                        "Lignes",
-                        format="%d"
-                    ),
-                    "product": st.column_config.TextColumn(
-                        "Produit",
-                        width="medium"
-                    ),
-                    "brand": st.column_config.TextColumn(
-                        "Marque",
-                        width="small"
-                    ),
-                    "country": st.column_config.TextColumn(
-                        "Pays",
-                        width="small"
-                    ),
-                    "random_seed": st.column_config.NumberColumn(
-                        "Seed",
-                        format="%d"
-                    )
-                }
+    if log_path.exists():
+        with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
+            export_log_df = pd.read_csv(log_path)
+            
+            if not export_log_df.empty:
+                # Configuration de l'affichage du dataframe
+                st.dataframe(
+                    export_log_df,
+                    height=400,  # Hauteur fixe pour éviter les problèmes d'affichage
+                    use_container_width=True,  # Utilise toute la largeur available
+                    column_config={
+                        "export_timestamp": st.column_config.DatetimeColumn(
+                            "Date d'export",
+                            format="DD/MM/YYYY HH:mm"
+                        ),
+                        "start_date": st.column_config.DateColumn(
+                            "Date début",
+                            format="DD/MM/YYYY"
+                        ),
+                        "end_date": st.column_config.DateColumn(
+                            "Date fin", 
+                            format="DD/MM/YYYY"
+                        ),
+                        "nb_reviews": st.column_config.NumberColumn(
+                            "Nb reviews",
+                            format="%d"
+                        ),
+                        "rows": st.column_config.NumberColumn(
+                            "Lignes",
+                            format="%d"
+                        ),
+                        "product": st.column_config.TextColumn(
+                            "Produit",
+                            width="medium"
+                        ),
+                        "brand": st.column_config.TextColumn(
+                            "Marque",
+                            width="small"
+                        ),
+                        "country": st.column_config.TextColumn(
+                            "Pays",
+                            width="small"
+                        ),
+                        "random_seed": st.column_config.NumberColumn(
+                            "Seed",
+                            format="%d"
+                        )
+                    }
+                )
+            else:
+                st.info("Aucun export enregistré pour le moment.")
+            
+            st.download_button(
+                "⬇️ Télécharger le journal des exports", 
+                export_log_df.to_csv(index=False), 
+                file_name="review_exports_log.csv", 
+                mime="text/csv"
             )
-        else:
-            st.info("Aucun export enregistré pour le moment.")
-        
-        st.download_button(
-            "⬇️ Télécharger le journal des exports", 
-            export_log_df.to_csv(index=False), 
-            file_name="review_exports_log.csv", 
-            mime="text/csv"
-        )
     
     with st.expander("🔧 Options d'export", expanded=True):
         col1, col2 = st.columns(2)
