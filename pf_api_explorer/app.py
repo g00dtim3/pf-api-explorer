@@ -1685,40 +1685,73 @@ def execute_bulk_export(params, is_preview):
     cursor_mark = "*"
     page_count = 0
     all_docs = []
-    max_iterations = min(200, expected_total_pages + 10)  # Sécurité
+    
+    # ✅ CORRECTION 1: Augmenter la limite de sécurité
+    max_iterations = 1000 if not is_preview else 1  # Limite plus élevée pour les gros exports
     
     # Boucle de récupération
     try:
         while page_count < max_iterations:
             page_count += 1
-            status_text.text(f"📥 Chargement page {page_count}/{expected_total_pages if not is_preview else 1}...")
+            
+            # ✅ CORRECTION 2: Affichage plus détaillé du progrès
+            current_count = len(all_docs)
+            status_text.text(f"📥 Page {page_count} | Récupéré: {current_count:,}/{total_api_results:,} reviews...")
             
             # Paramètres avec cursor
             current_params = params.copy()
             current_params["cursorMark"] = cursor_mark
             
+            # ✅ CORRECTION 3: Debug de la requête
+            if page_count <= 3:  # Log des premières pages pour debug
+                st.write(f"🔍 Debug page {page_count}: cursor={cursor_mark[:20]}...")
+            
             # Appel API
             result = fetch("/reviews", current_params)
             
-            if not result or not result.get("docs"):
+            if not result:
+                st.error(f"❌ Erreur API à la page {page_count}")
+                break
+                
+            if not result.get("docs"):
                 st.warning(f"⚠️ Pas de données à la page {page_count}")
                 break
             
             docs = result.get("docs", [])
             all_docs.extend(docs)
             
+            # ✅ CORRECTION 4: Vérification de progression réelle
+            st.write(f"📊 Page {page_count}: +{len(docs)} reviews (Total: {len(all_docs)})")
+            
             # Mise à jour progression
             if progress_bar is not None:
-                progress_percent = min(page_count / expected_total_pages, 1.0) if expected_total_pages > 0 else 1.0
+                progress_percent = min(len(all_docs) / total_api_results, 1.0)
                 progress_bar.progress(progress_percent)
             
             # En mode aperçu, on s'arrête après la première page
             if is_preview:
                 break
             
-            # Vérifier le cursor suivant
+            # ✅ CORRECTION 5: Gestion améliorée du cursor
             next_cursor = result.get("nextCursorMark")
-            if not next_cursor or next_cursor == cursor_mark:
+            
+            # Debug du cursor
+            if page_count <= 3:
+                st.write(f"🔍 Cursor actuel: {cursor_mark[:20]}...")
+                st.write(f"🔍 Cursor suivant: {next_cursor[:20] if next_cursor else 'None'}...")
+            
+            # Conditions d'arrêt
+            if not next_cursor:
+                st.info(f"🏁 Fin de pagination: pas de cursor suivant")
+                break
+                
+            if next_cursor == cursor_mark:
+                st.info(f"🏁 Fin de pagination: cursor identique")
+                break
+            
+            # ✅ CORRECTION 6: Vérification si on a tout récupéré
+            if len(all_docs) >= total_api_results:
+                st.info(f"🏁 Toutes les reviews récupérées ({len(all_docs)})")
                 break
             
             cursor_mark = next_cursor
@@ -1726,9 +1759,14 @@ def execute_bulk_export(params, is_preview):
             # Limite aperçu
             if is_preview and len(all_docs) >= 100:
                 break
-    
+                
+            # ✅ CORRECTION 7: Pause entre requêtes pour éviter les limites
+            if page_count % 10 == 0:  # Pause toutes les 10 pages
+                time.sleep(0.1)
+                
     except Exception as e:
         st.error(f"❌ Erreur lors de l'export : {str(e)}")
+        st.write(f"🔍 Debug: Page {page_count}, Reviews récupérées: {len(all_docs)}")
         return
     
     # Stocker les résultats
@@ -1738,15 +1776,58 @@ def execute_bulk_export(params, is_preview):
     # Messages finaux
     mode_text = "aperçu en masse" if is_preview else "export complet en masse"
     if all_docs:
-        status_text.text(f"✅ {mode_text.capitalize()} terminé! {len(all_docs):,} reviews récupérées")
+        success_msg = f"✅ {mode_text.capitalize()} terminé! {len(all_docs):,} reviews récupérées sur {total_api_results:,} attendues"
+        status_text.text(success_msg)
+        
+        # ✅ CORRECTION 8: Avertissement si pas toutes les reviews
+        if len(all_docs) < total_api_results and not is_preview:
+            st.warning(f"⚠️ Attention: {total_api_results - len(all_docs)} reviews manquantes")
+        
         st.balloons()  # Célébration pour les gros exports !
         
         # Log pour export complet
         if not is_preview:
             log_bulk_export(params, len(all_docs))
-        
+            
     else:
         status_text.text(f"⚠️ Aucune review récupérée.")
+
+
+# ✅ FONCTION BONUS: Diagnostic de pagination
+def diagnostic_pagination(params):
+    """Diagnostique les problèmes de pagination"""
+    st.markdown("### 🔍 Diagnostic de pagination")
+    
+    # Test des premières pages
+    cursor_mark = "*"
+    for page in range(1, 4):
+        st.write(f"**Page {page}:**")
+        
+        current_params = params.copy()
+        current_params["cursorMark"] = cursor_mark
+        current_params["rows"] = 10  # Petit échantillon
+        
+        result = fetch("/reviews", current_params)
+        
+        if result:
+            docs = result.get("docs", [])
+            next_cursor = result.get("nextCursorMark")
+            
+            st.write(f"- Docs récupérés: {len(docs)}")
+            st.write(f"- Cursor actuel: `{cursor_mark[:30]}...`")
+            st.write(f"- Cursor suivant: `{next_cursor[:30] if next_cursor else 'None'}...`")
+            st.write(f"- Cursor change: {next_cursor != cursor_mark}")
+            
+            if not next_cursor or next_cursor == cursor_mark:
+                st.write("🏁 Fin de pagination détectée")
+                break
+                
+            cursor_mark = next_cursor
+        else:
+            st.write("❌ Erreur API")
+            break
+        
+        st.write("---")
 
 def log_bulk_export(params, nb_reviews):
     """Enregistre l'export en masse dans le log"""
