@@ -1073,32 +1073,18 @@ def display_reviews_export_interface(filters, selected_products):
     # Configuration du chemin du log
     log_path = Path("review_exports_log.csv")
     
-    # Journal des exports avec parsing corrigé - MAIS NE PAS BLOQUER LA SUITE
+    # Journal des exports - SANS BLOQUER LA SUITE
     with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
         if not log_path.exists():
             st.info("📁 Aucun journal d'export trouvé pour le moment.")
         else:
             try:
-                export_log_df = load_export_log(log_path)
-                
-                if export_log_df is not None and not export_log_df.empty:
-                    display_export_log_dataframe(export_log_df)
-                    
-                    # Bouton pour corriger le format si nécessaire
-                    display_csv_correction_button(log_path, export_log_df)
-                    
-                    # Bouton de téléchargement
-                    display_download_button(export_log_df)
-                else:
-                    st.info("Aucune donnée d'export valide trouvée.")
-                    
+                # Ici on pourrait charger le log s'il existe
+                st.info("Journal d'export existant mais pas encore implémenté")
             except Exception as e:
-                st.error(f"Erreur lors de la lecture du fichier: {e}")
-                # Afficher le debug seulement en cas d'erreur
-                if log_path.exists():
-                    display_debug_content(log_path)
+                st.error(f"Erreur lors de la lecture du journal: {e}")
 
-    # ✅ CORRECTION PRINCIPALE : Les options d'export DOIVENT s'afficher même sans log
+    # ✅ OPTIONS D'EXPORT - TOUJOURS AFFICHÉES
     with st.expander("🔧 Options d'export", expanded=True):
         col1, col2 = st.columns(2)
     
@@ -1131,42 +1117,11 @@ def display_reviews_export_interface(filters, selected_products):
             with col4:
                 st.metric("Valable jusqu'au", quotas.get('end date', 'N/A'))
     
-        # Vérification d'export déjà réalisé
-        potential_duplicates = []
-        if log_path and log_path.exists():
-            try:
-                export_log_df = pd.read_csv(log_path)
-                export_log_df["start_date"] = pd.to_datetime(export_log_df["start_date"])
-                export_log_df["end_date"] = pd.to_datetime(export_log_df["end_date"])
-    
-                product_names = params.get("product", "").split(",")
-                start = pd.to_datetime(str(params.get("start-date")))
-                end = pd.to_datetime(str(params.get("end-date")))
-    
-                for prod in product_names:
-                    overlapping = export_log_df[
-                        (export_log_df["product"] == prod) &
-                        (export_log_df["start_date"] <= end) &
-                        (export_log_df["end_date"] >= start)
-                    ]
-                    if not overlapping.empty:
-                        potential_duplicates.append(prod)
-            except Exception as e:
-                st.warning(f"Erreur de lecture du fichier log : {e}")
-    
-        if potential_duplicates:
-            st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
-        
         st.markdown("### 🔍 Options d'export")
             
-        # Déterminer l'index du mode d'export
+        # Mode d'export
         export_mode_index = 0 if st.session_state.get('is_preview_mode', True) else 1
             
-        # Si l'utilisateur a demandé le passage en mode complet depuis l'aperçu
-        if st.session_state.get('switch_to_full_export', False):
-            export_mode_index = 1
-            st.session_state.switch_to_full_export = False
-                
         export_mode = st.radio(
             "Mode d'export",
             ["Aperçu rapide (50 reviews max)", "Export complet (toutes les reviews)"],
@@ -1177,21 +1132,21 @@ def display_reviews_export_interface(filters, selected_products):
         st.session_state.is_preview_mode = export_mode == "Aperçu rapide (50 reviews max)"
         preview_limit = 50
             
-        # 🔒 PROTECTION ANTI-DOUBLE-EXPORT
+        # Bouton de lancement
         if st.button("📅 Lancer " + ("l'aperçu" if st.session_state.is_preview_mode else "l'export complet")):
             
-            # ✅ Vérifier si un export est déjà en cours
+            # Vérifier si un export est déjà en cours
             if st.session_state.get('export_in_progress', False):
                 st.warning("⚠️ Un export est déjà en cours. Veuillez patienter.")
                 st.stop()
             
-            # 🔒 Marquer l'export comme en cours
+            # Marquer l'export comme en cours
             st.session_state.export_in_progress = True
             
-            # 🧹 Réinitialiser complètement la session
+            # Réinitialiser la session
             st.session_state.cursor_mark = "*"
             st.session_state.current_page = 1
-            st.session_state.all_docs = []  # ✅ Vider explicitement
+            st.session_state.all_docs = []
             st.session_state.export_params = params.copy()
                 
             params_with_rows = params.copy()
@@ -1210,12 +1165,12 @@ def display_reviews_export_interface(filters, selected_products):
                 
             if total_api_results == 0:
                 st.warning("Aucune review disponible pour cette combinaison")
-                st.session_state.export_in_progress = False  # 🔓 Libérer le verrou
+                st.session_state.export_in_progress = False
             else:
                 try:
                     execute_export_process(params_with_rows, total_api_results, preview_limit)
                 finally:
-                    st.session_state.export_in_progress = False  # 🔓 Toujours libérer le verrou
+                    st.session_state.export_in_progress = False
 
 
 def load_export_log(log_path):
