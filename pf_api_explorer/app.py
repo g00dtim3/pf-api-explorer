@@ -1030,6 +1030,7 @@ def display_product_table():
 
 def display_reviews_export_interface(filters, selected_products):
     """Affiche l'interface d'export des reviews"""
+    
     # Construction des paramètres d'export
     params = {
         "start-date": filters["start_date"],
@@ -1058,183 +1059,246 @@ def display_reviews_export_interface(filters, selected_products):
         params["product"] = ",".join(selected_products)
     
     # Affichage des métriques
-    dynamic_metrics = fetch("/metrics", params)
-    if dynamic_metrics and dynamic_metrics.get("nbDocs"):
-        st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
-    else:
-        st.warning("Aucune review disponible pour cette combinaison")
+    try:
+        dynamic_metrics = fetch("/metrics", params)
+        if dynamic_metrics and dynamic_metrics.get("nbDocs"):
+            st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
+        else:
+            st.warning("Aucune review disponible pour cette combinaison")
+    except Exception as e:
+        st.error(f"Erreur lors de la récupération des métriques: {e}")
 
     st.markdown("## ⚙️ Paramètres d'export des reviews")
 
+    # Configuration du chemin du log - CORRECTION PRINCIPALE
+    log_path = Path("review_exports_log.csv")
+    
+    # Vérification de l'existence du fichier
+    if not log_path.exists():
+        st.info("📁 Aucun journal d'export trouvé pour le moment.")
+        return  # Sortir de la fonction si pas de fichier
     
     # Journal des exports avec parsing corrigé
-    if 'log_path' not in locals() or log_path is None:
-        log_path = Path("review_exports_log.csv")
-    if isinstance(log_path, str):
-        log_path = Path(log_path)
-        
-    if log_path.exists():
-        with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
-            try:
-                # Essayer plusieurs méthodes de parsing
-                export_log_df = None
+    with st.expander("📁 Consulter le journal des exports précédents", expanded=False):
+        try:
+            export_log_df = load_export_log(log_path)
+            
+            if export_log_df is not None and not export_log_df.empty:
+                display_export_log_dataframe(export_log_df)
                 
-                # Méthode 1: Lecture avec différents séparateurs
-                for sep in [',', ';', '\t', '|']:
-                    try:
-                        temp_df = pd.read_csv(log_path, sep=sep, encoding='utf-8')
-                        # Vérifier si on a plus d'une colonne
-                        if temp_df.shape[1] > 1:
-                            export_log_df = temp_df
-                            st.success(f"✅ Fichier parsé avec le séparateur '{sep}'")
-                            break
-                    except:
-                        continue
-                
-                # Méthode 2: Si aucun séparateur ne fonctionne, parser manuellement
-                if export_log_df is None or export_log_df.shape[1] == 1:
-                    st.warning("⚠️ Parsing automatique échoué. Tentative de parsing manuel...")
-                    
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                    
-                    # Définir les colonnes attendues
-                    expected_columns = [
-                        'product', 'brand', 'start_date', 'end_date', 'country', 
-                        'rows', 'random_seed', 'nb_reviews', 'export_timestamp'
-                    ]
-                    
-                    parsed_data = []
-                    
-                    for i, line in enumerate(lines):
-                        line = line.strip()
-                        if not line:
-                            continue
-                            
-                        # Si c'est la première ligne et qu'elle contient les en-têtes
-                        if i == 0 and any(col in line.lower() for col in ['product', 'brand', 'export']):
-                            continue
-                        
-                        # Essayer de séparer par différents délimiteurs
-                        parts = None
-                        for sep in [';', ',', '\t', '|']:
-                            temp_parts = line.split(sep)
-                            if len(temp_parts) >= 8:  # Au moins 8 colonnes attendues
-                                parts = temp_parts
-                                break
-                        
-                        if parts and len(parts) >= len(expected_columns):
-                            # Prendre seulement le nombre de colonnes attendu
-                            row_data = parts[:len(expected_columns)]
-                            parsed_data.append(row_data)
-                        else:
-                            # Si le parsing échoue, essayer de deviner la structure
-                            st.error(f"Ligne {i+1} non parsable: {line[:100]}...")
-                    
-                    if parsed_data:
-                        export_log_df = pd.DataFrame(parsed_data, columns=expected_columns)
-                        st.success(f"✅ {len(parsed_data)} lignes parsées manuellement")
-                    else:
-                        st.error("❌ Impossible de parser le fichier")
-                
-                # Afficher le dataframe si le parsing a réussi
-                if export_log_df is not None and not export_log_df.empty:
-                    # Nettoyer les données
-                    export_log_df = export_log_df.replace('', pd.NA)
-                    
-                    # Afficher des informations de debug
-                    st.info(f"📊 Dimensions du tableau: {export_log_df.shape[0]} lignes × {export_log_df.shape[1]} colonnes")
-                    
-                    # Convertir les colonnes numériques
-                    numeric_columns = ['rows', 'nb_reviews', 'random_seed']
-                    for col in numeric_columns:
-                        if col in export_log_df.columns:
-                            export_log_df[col] = pd.to_numeric(export_log_df[col], errors='coerce')
-                    
-                    # Configuration de l'affichage du dataframe
-                    st.dataframe(
-                        export_log_df,
-                        height=400,
-                        use_container_width=True,
-                        column_config={
-                            "export_timestamp": st.column_config.DatetimeColumn(
-                                "Date d'export",
-                                format="DD/MM/YYYY HH:mm"
-                            ),
-                            "start_date": st.column_config.DateColumn(
-                                "Date début",
-                                format="DD/MM/YYYY"
-                            ),
-                            "end_date": st.column_config.DateColumn(
-                                "Date fin", 
-                                format="DD/MM/YYYY"
-                            ),
-                            "nb_reviews": st.column_config.NumberColumn(
-                                "Nb reviews",
-                                format="%d"
-                            ),
-                            "rows": st.column_config.NumberColumn(
-                                "Lignes",
-                                format="%d"
-                            ),
-                            "product": st.column_config.TextColumn(
-                                "Produit",
-                                width="medium"
-                            ),
-                            "brand": st.column_config.TextColumn(
-                                "Marque",
-                                width="small"
-                            ),
-                            "country": st.column_config.TextColumn(
-                                "Pays",
-                                width="small"
-                            ),
-                            "random_seed": st.column_config.NumberColumn(
-                                "Seed",
-                                format="%d"
-                            )
-                        }
-                    )
-                    
-                    # Bouton pour recréer le fichier CSV correctement formaté
-                    if st.button("🔧 Corriger le format du fichier CSV"):
-                        try:
-                            # Sauvegarder avec le bon format
-                            backup_path = log_path.with_suffix('.backup.csv')
-                            log_path.rename(backup_path)
-                            
-                            # Recréer le fichier avec le bon format
-                            export_log_df.to_csv(log_path, index=False, sep=',', encoding='utf-8')
-                            
-                            st.success(f"✅ Fichier corrigé ! Backup sauvé: {backup_path.name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erreur lors de la correction: {e}")
-                    
-                else:
-                    st.info("Aucun export enregistré pour le moment.")
+                # Bouton pour corriger le format si nécessaire
+                display_csv_correction_button(log_path, export_log_df)
                 
                 # Bouton de téléchargement
-                if export_log_df is not None:
-                    csv_data = export_log_df.to_csv(index=False, sep=',', encoding='utf-8')
-                    st.download_button(
-                        "⬇️ Télécharger le journal des exports", 
-                        csv_data,
-                        file_name="review_exports_log.csv", 
-                        mime="text/csv"
-                    )
-                    
-            except Exception as e:
-                st.error(f"Erreur lors de la lecture du fichier: {e}")
+                display_download_button(export_log_df)
+            else:
+                st.info("Aucune donnée d'export valide trouvée.")
+                
+        except Exception as e:
+            st.error(f"Erreur lors de la lecture du fichier: {e}")
+            # Afficher le debug seulement en cas d'erreur
+            display_debug_content(log_path)
+
+
+def load_export_log(log_path):
+    """Charge et parse le fichier de log des exports"""
+    
+    st.info(f"📂 Tentative de lecture: {log_path}")
+    
+    # Méthode 1: Essayer différents séparateurs
+    for sep in [',', ';', '\t', '|']:
+        try:
+            temp_df = pd.read_csv(log_path, sep=sep, encoding='utf-8')
+            if temp_df.shape[1] > 1:  # Plus d'une colonne = parsing réussi
+                st.success(f"✅ Fichier parsé avec le séparateur '{sep}'")
+                return clean_dataframe(temp_df)
+        except Exception as e:
+            st.debug(f"Échec avec séparateur '{sep}': {e}")
+            continue
+    
+    # Méthode 2: Parsing manuel si auto-parsing échoue
+    st.warning("⚠️ Parsing automatique échoué. Tentative de parsing manuel...")
+    return parse_manually(log_path)
+
+
+def parse_manually(log_path):
+    """Parse manuellement le fichier CSV"""
+    
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except Exception as e:
+        st.error(f"Impossible de lire le fichier: {e}")
+        return None
+    
+    # Colonnes attendues
+    expected_columns = [
+        'product', 'brand', 'start_date', 'end_date', 'country', 
+        'rows', 'random_seed', 'nb_reviews', 'export_timestamp'
+    ]
+    
+    parsed_data = []
+    
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
             
-            # Afficher le contenu brut pour debug
-            with st.expander("🔍 Contenu brut du fichier (debug)", expanded=False):
-                try:
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    st.text(content[:1000] + "..." if len(content) > 1000 else content)
-                except:
-                    st.error("Impossible de lire le fichier")
+        # Skip header ligne
+        if i == 0 and any(col in line.lower() for col in ['product', 'brand', 'export']):
+            continue
+        
+        # Essayer différents délimiteurs
+        parts = None
+        for sep in [';', ',', '\t', '|']:
+            temp_parts = line.split(sep)
+            if len(temp_parts) >= 8:
+                parts = temp_parts[:len(expected_columns)]  # Limiter aux colonnes attendues
+                break
+        
+        if parts:
+            parsed_data.append(parts)
+        else:
+            st.warning(f"Ligne {i+1} ignorée: format non reconnu")
+    
+    if parsed_data:
+        df = pd.DataFrame(parsed_data, columns=expected_columns)
+        st.success(f"✅ {len(parsed_data)} lignes parsées manuellement")
+        return clean_dataframe(df)
+    else:
+        st.error("❌ Aucune ligne parsable trouvée")
+        return None
+
+
+def clean_dataframe(df):
+    """Nettoie et formate le dataframe"""
+    
+    # Remplacer les valeurs vides
+    df = df.replace('', pd.NA)
+    
+    # Convertir les colonnes numériques
+    numeric_columns = ['rows', 'nb_reviews', 'random_seed']
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # Convertir les dates si possible
+    date_columns = ['start_date', 'end_date', 'export_timestamp']
+    for col in date_columns:
+        if col in df.columns:
+            try:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+            except:
+                pass
+    
+    return df
+
+
+def display_export_log_dataframe(df):
+    """Affiche le dataframe des exports"""
+    
+    st.info(f"📊 {df.shape[0]} exports trouvés ({df.shape[1]} colonnes)")
+    
+    # Configuration des colonnes pour l'affichage
+    column_config = {
+        "export_timestamp": st.column_config.DatetimeColumn(
+            "Date d'export",
+            format="DD/MM/YYYY HH:mm"
+        ),
+        "start_date": st.column_config.DateColumn(
+            "Date début",
+            format="DD/MM/YYYY"
+        ),
+        "end_date": st.column_config.DateColumn(
+            "Date fin", 
+            format="DD/MM/YYYY"
+        ),
+        "nb_reviews": st.column_config.NumberColumn(
+            "Nb reviews",
+            format="%d"
+        ),
+        "rows": st.column_config.NumberColumn(
+            "Lignes",
+            format="%d"
+        ),
+        "product": st.column_config.TextColumn(
+            "Produit",
+            width="medium"
+        ),
+        "brand": st.column_config.TextColumn(
+            "Marque",
+            width="small"
+        ),
+        "country": st.column_config.TextColumn(
+            "Pays",
+            width="small"
+        ),
+        "random_seed": st.column_config.NumberColumn(
+            "Seed",
+            format="%d"
+        )
+    }
+    
+    st.dataframe(
+        df,
+        height=400,
+        use_container_width=True,
+        column_config=column_config
+    )
+
+
+def display_csv_correction_button(log_path, df):
+    """Affiche le bouton de correction du CSV"""
+    
+    if st.button("🔧 Corriger le format du fichier CSV"):
+        try:
+            # Backup
+            backup_path = log_path.with_suffix('.backup.csv')
+            if log_path.exists():
+                log_path.rename(backup_path)
+            
+            # Recréer avec le bon format
+            df.to_csv(log_path, index=False, sep=',', encoding='utf-8')
+            
+            st.success(f"✅ Fichier corrigé ! Backup: {backup_path.name}")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Erreur lors de la correction: {e}")
+
+
+def display_download_button(df):
+    """Affiche le bouton de téléchargement"""
+    
+    try:
+        csv_data = df.to_csv(index=False, sep=',', encoding='utf-8')
+        st.download_button(
+            "⬇️ Télécharger le journal des exports", 
+            csv_data,
+            file_name="review_exports_log.csv", 
+            mime="text/csv"
+        )
+    except Exception as e:
+        st.error(f"Erreur lors de la génération du CSV: {e}")
+
+
+def display_debug_content(log_path):
+    """Affiche le contenu brut pour debug"""
+    
+    with st.expander("🔍 Contenu brut du fichier (debug)", expanded=False):
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Limiter l'affichage
+            display_content = content[:1500] + "\n...(contenu tronqué)" if len(content) > 1500 else content
+            st.code(display_content, language="text")
+            
+            # Infos sur le fichier
+            st.caption(f"Taille du fichier: {len(content)} caractères")
+            
+        except Exception as e:
+            st.error(f"Impossible de lire le fichier: {e}")
     
     with st.expander("🔧 Options d'export", expanded=True):
         col1, col2 = st.columns(2)
