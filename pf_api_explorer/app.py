@@ -1095,7 +1095,8 @@ def display_reviews_export_interface(filters, selected_products):
             except Exception as e:
                 st.error(f"Erreur lors de la lecture du fichier: {e}")
                 # Afficher le debug seulement en cas d'erreur
-                display_debug_content(log_path)
+                if log_path.exists():
+                    display_debug_content(log_path)
 
     # ✅ CORRECTION PRINCIPALE : Les options d'export DOIVENT s'afficher même sans log
     with st.expander("🔧 Options d'export", expanded=True):
@@ -1156,7 +1157,7 @@ def display_reviews_export_interface(filters, selected_products):
         if potential_duplicates:
             st.warning(f"🚫 Les produits suivants ont déjà été exportés pour une période qui recouvre partiellement ou totalement celle sélectionnée : {', '.join(potential_duplicates)}")
         
-        st.header("🔍 Options d'export")
+        st.markdown("### 🔍 Options d'export")
             
         # Déterminer l'index du mode d'export
         export_mode_index = 0 if st.session_state.get('is_preview_mode', True) else 1
