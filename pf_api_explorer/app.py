@@ -38,7 +38,7 @@ def fetch_cached(endpoint, params=None):
     """Fonction pour récupérer les données de l'API avec cache"""
     BASE_URL = "https://api-pf.ratingsandreviews-beauty.com"
     TOKEN = st.secrets["api"]["token"]
-    show_debug = True
+    show_debug = False
 
     if params is None:
         params = {}
