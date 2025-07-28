@@ -1634,29 +1634,8 @@ def display_bulk_export_interface():
     st.markdown("### 🚀 Export en masse par marque")
     
     filters = st.session_state.filters
-
-    # ✅ ÉTAT D'EXPORT - Vérifier si un export est en cours
-    export_in_progress = st.session_state.get('bulk_export_in_progress', False)
     
-    # ✅ INTERFACE FIGÉE PENDANT L'EXPORT
-    if export_in_progress:
-        st.warning("⏳ **Export en cours - Interface verrouillée**")
-        st.info("🔒 L'interface est temporairement désactivée pour éviter les interférences")
-        
-        # Afficher seulement le statut d'export
-        if 'export_status' in st.session_state:
-            st.text(st.session_state.export_status)
-        
-        # Bouton d'arrêt d'urgence (optionnel)
-        if st.button("🛑 Arrêter l'export", key="stop_export"):
-            st.session_state.bulk_export_in_progress = False
-            st.session_state.pop('export_status', None)
-            st.rerun()
-        
-        # Ne pas afficher le reste de l'interface
-        return
-        
-    # ✅ INTERFACE NORMALE (seulement si pas d'export en cours)
+    # Options d'export en masse
     with st.expander("📦 Options d'export en masse", expanded=True):
         st.markdown("""
         **Export en masse** : Récupère toutes les reviews pour les marques sélectionnées **sans** avoir besoin de sélectionner les produits individuellement.
@@ -1765,18 +1744,11 @@ def display_bulk_export_interface():
             else:
                 st.info(f"Export complet : {total_estimated:,} reviews seront exportées")
         
-        # ✅ BOUTON DE LANCEMENT AVEC PROTECTION COMPLÈTE
+        # Bouton de lancement
         if st.button("🚀 Lancer l'export en masse", key="launch_bulk_export"):
             if not filters.get("brand"):
                 st.error("❌ Aucune marque sélectionnée pour l'export en masse")
                 return
-            
-            # ✅ VERROUILLER L'INTERFACE
-            st.session_state.bulk_export_in_progress = True
-            st.session_state.export_status = "🔄 Initialisation de l'export..."
-            
-            # Forcer le rechargement pour afficher l'interface verrouillée
-            st.rerun()
             
             # Construire les paramètres pour l'export en masse
             bulk_params = {
@@ -1821,73 +1793,102 @@ def display_bulk_export_interface():
             # Lancer l'export
             execute_bulk_export(bulk_params, is_bulk_preview)
 
-def execute_bulk_export(params, is_preview, total_estimated=None):
-    """Exécute l'export en masse avec interface figée"""
+def execute_bulk_export(params, is_preview):
+    """Exécute l'export en masse"""
+    st.markdown("### 🔄 Export en cours...")
     
-    # ✅ VÉRIFICATION DE SÉCURITÉ
-    if not st.session_state.get('bulk_export_in_progress', False):
-        st.error("❌ Export non autorisé - veuillez relancer depuis l'interface")
+    # Obtenir les métriques totales
+    metrics_result = fetch("/metrics", params)
+    total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+    
+    if total_api_results == 0:
+        st.warning("❌ Aucune review disponible pour cette combinaison")
         return
     
+    # Configuration selon le mode
+    if is_preview:
+        expected_total_pages = 1
+        max_reviews = min(100, total_api_results)
+        st.info(f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum sur {total_api_results} disponibles")
+    else:
+        rows_per_page = params.get("rows", 500)
+        expected_total_pages = (total_api_results + rows_per_page - 1) // rows_per_page
+        st.info(f"🔄 Export complet : Chargement de toutes les {total_api_results:,} reviews sur {expected_total_pages} pages...")
+    
+    # Interface de progression
+    status_text = st.empty()
+    progress_bar = None if is_preview else st.progress(0)
+    
+    cursor_mark = "*"
+    page_count = 0
+    all_docs = []
+    
+    # ✅ CORRECTION 1: Augmenter la limite de sécurité
+    max_iterations = 1000 if not is_preview else 1  # Limite plus élevée pour les gros exports
+    
+    # Boucle de récupération
     try:
-        # Obtenir les métriques totales
-        if total_estimated is not None:
-            total_api_results = total_estimated
-        else:
-            st.session_state.export_status = "📊 Calcul du volume total..."
-            metrics_result = fetch("/metrics", params)
-            total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
-        
-        if total_api_results == 0:
-            st.session_state.export_status = "❌ Aucune review disponible"
-            return
-        
-        # Configuration selon le mode
-        if is_preview:
-            expected_total_pages = 1
-            max_reviews = min(100, total_api_results)
-            st.session_state.export_status = f"📊 Mode aperçu : Chargement de {max_reviews} reviews maximum..."
-        else:
-            rows_per_page = params.get("rows", 500)
-            expected_total_pages = (total_api_results + rows_per_page - 1) // rows_per_page
-            st.session_state.export_status = f"🔄 Export complet : {expected_total_pages} pages à charger..."
-        
-        cursor_mark = "*"
-        page_count = 0
-        all_docs = []
-        max_iterations = 1000 if not is_preview else 1
-        
-        # ✅ BOUCLE AVEC MISE À JOUR DU STATUT SEULEMENT
         while page_count < max_iterations:
             page_count += 1
             
-            # ✅ MISE À JOUR DU STATUT (sans st.write qui cause des re-runs)
+            # ✅ CORRECTION 2: Affichage plus détaillé du progrès
             current_count = len(all_docs)
-            st.session_state.export_status = f"📥 Page {page_count}/{expected_total_pages} | Récupéré: {current_count:,}/{total_api_results:,} reviews"
+            status_text.text(f"📥 Page {page_count} | Récupéré: {current_count:,}/{total_api_results:,} reviews...")
             
             # Paramètres avec cursor
             current_params = params.copy()
             current_params["cursorMark"] = cursor_mark
             
-            # Appel API - LE SEUL APPEL /reviews
+            # ✅ CORRECTION 3: Debug de la requête
+            if page_count <= 3:  # Log des premières pages pour debug
+                st.write(f"🔍 Debug page {page_count}: cursor={cursor_mark[:20]}...")
+            
+            # Appel API
             result = fetch("/reviews", current_params)
             
-            if not result or not result.get("docs"):
-                st.session_state.export_status = f"⚠️ Arrêt à la page {page_count} - Pas de données"
+            if not result:
+                st.error(f"❌ Erreur API à la page {page_count}")
+                break
+                
+            if not result.get("docs"):
+                st.warning(f"⚠️ Pas de données à la page {page_count}")
                 break
             
             docs = result.get("docs", [])
             all_docs.extend(docs)
             
+            # ✅ CORRECTION 4: Vérification de progression réelle
+            st.write(f"📊 Page {page_count}: +{len(docs)} reviews (Total: {len(all_docs)})")
+            
+            # Mise à jour progression
+            if progress_bar is not None:
+                progress_percent = min(len(all_docs) / total_api_results, 1.0)
+                progress_bar.progress(progress_percent)
+            
             # En mode aperçu, on s'arrête après la première page
             if is_preview:
                 break
             
-            # Gestion du cursor
+            # ✅ CORRECTION 5: Gestion améliorée du cursor
             next_cursor = result.get("nextCursorMark")
             
+            # Debug du cursor
+            if page_count <= 3:
+                st.write(f"🔍 Cursor actuel: {cursor_mark[:20]}...")
+                st.write(f"🔍 Cursor suivant: {next_cursor[:20] if next_cursor else 'None'}...")
+            
             # Conditions d'arrêt
-            if not next_cursor or next_cursor == cursor_mark or len(all_docs) >= total_api_results:
+            if not next_cursor:
+                st.info(f"🏁 Fin de pagination: pas de cursor suivant")
+                break
+                
+            if next_cursor == cursor_mark:
+                st.info(f"🏁 Fin de pagination: cursor identique")
+                break
+            
+            # ✅ CORRECTION 6: Vérification si on a tout récupéré
+            if len(all_docs) >= total_api_results:
+                st.info(f"🏁 Toutes les reviews récupérées ({len(all_docs)})")
                 break
             
             cursor_mark = next_cursor
@@ -1895,37 +1896,38 @@ def execute_bulk_export(params, is_preview, total_estimated=None):
             # Limite aperçu
             if is_preview and len(all_docs) >= 100:
                 break
-            
-            # ✅ VÉRIFIER SI L'UTILISATEUR A ANNULÉ
-            if not st.session_state.get('bulk_export_in_progress', False):
-                st.session_state.export_status = "🛑 Export annulé par l'utilisateur"
-                return
+                
+            # ✅ CORRECTION 7: Pause entre requêtes pour éviter les limites
+            if page_count % 10 == 0:  # Pause toutes les 10 pages
+                time.sleep(0.1)
+                
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'export : {str(e)}")
+        st.write(f"🔍 Debug: Page {page_count}, Reviews récupérées: {len(all_docs)}")
+        return
+    
+    # Stocker les résultats
+    st.session_state.all_docs = all_docs
+    st.session_state.current_page = 1
+    
+    # Messages finaux
+    mode_text = "aperçu en masse" if is_preview else "export complet en masse"
+    if all_docs:
+        success_msg = f"✅ {mode_text.capitalize()} terminé! {len(all_docs):,} reviews récupérées sur {total_api_results:,} attendues"
+        status_text.text(success_msg)
         
-        # ✅ FINALISATION
-        st.session_state.all_docs = all_docs
-        st.session_state.current_page = 1
-        
-        # Messages finaux
-        mode_text = "aperçu en masse" if is_preview else "export complet en masse"
-        success_msg = f"✅ {mode_text.capitalize()} terminé! {len(all_docs):,} reviews récupérées"
-        st.session_state.export_status = success_msg
-        
+        # ✅ CORRECTION 8: Avertissement si pas toutes les reviews
         if len(all_docs) < total_api_results and not is_preview:
-            st.session_state.export_status += f" | ⚠️ {total_api_results - len(all_docs)} manquantes"
+            st.warning(f"⚠️ Attention: {total_api_results - len(all_docs)} reviews manquantes")
+        
+        st.balloons()  # Célébration pour les gros exports !
         
         # Log pour export complet
         if not is_preview:
             log_bulk_export(params, len(all_docs))
-    
-    except Exception as e:
-        st.session_state.export_status = f"❌ Erreur lors de l'export : {str(e)}"
-    
-    finally:
-        # ✅ DÉVERROUILLER L'INTERFACE dans tous les cas
-        import time
-        time.sleep(2)  # Laisser le temps de voir le message final
-        st.session_state.bulk_export_in_progress = False
-        st.session_state.pop('export_status', None)
+            
+    else:
+        status_text.text(f"⚠️ Aucune review récupérée.")
 
 
 # ✅ FONCTION BONUS: Diagnostic de pagination
@@ -1963,21 +1965,6 @@ def diagnostic_pagination(params):
             break
         
         st.write("---")
-
-# ✅ FONCTION D'APPEL MODIFIÉE
-def launch_bulk_export_with_protection():
-    """Lance l'export avec protection complète"""
-    
-    # Récupérer les paramètres stockés
-    bulk_params = st.session_state.get('export_params', {})
-    is_preview = st.session_state.get('is_preview_mode', False)
-    total_estimated = st.session_state.get('total_estimated', None)
-    
-    if bulk_params:
-        execute_bulk_export(bulk_params, is_preview, total_estimated)
-    else:
-        st.error("❌ Paramètres d'export manquants")
-        st.session_state.bulk_export_in_progress = False
 
 def log_bulk_export(params, nb_reviews):
     """Enregistre l'export en masse dans le log"""
