@@ -10,6 +10,7 @@ import ast
 import json
 import os
 from pathlib import Path
+import time
 
 st.set_page_config(page_title="Explorateur API Ratings & Reviews", layout="wide")
 
@@ -1058,15 +1059,6 @@ def display_reviews_export_interface(filters, selected_products):
     if selected_products:
         params["product"] = ",".join(selected_products)
     
-    # Affichage des métriques
-    try:
-        dynamic_metrics = fetch("/metrics", params)
-        if dynamic_metrics and dynamic_metrics.get("nbDocs"):
-            st.success(f"{dynamic_metrics['nbDocs']} reviews disponibles")
-        else:
-            st.warning("Aucune review disponible pour cette combinaison")
-    except Exception as e:
-        st.error(f"Erreur lors de la récupération des métriques: {e}")
 
     st.markdown("## ⚙️ Paramètres d'export des reviews")
 
@@ -1160,17 +1152,10 @@ def display_reviews_export_interface(filters, selected_products):
             if use_random and random_seed:
                 params_with_rows["random"] = str(random_seed)
                 
-            metrics_result = fetch("/metrics", params)
-            total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
-                
-            if total_api_results == 0:
-                st.warning("Aucune review disponible pour cette combinaison")
+            try:
+                execute_export_process(params_with_rows, preview_limit)
+            finally:
                 st.session_state.export_in_progress = False
-            else:
-                try:
-                    execute_export_process(params_with_rows, total_api_results, preview_limit)
-                finally:
-                    st.session_state.export_in_progress = False
 
 
 def load_export_log(log_path):
@@ -1492,12 +1477,20 @@ def display_debug_content(log_path):
                     st.session_state.export_in_progress = False  # 🔓 Toujours libérer le verrou
 
 
-def execute_export_process(params_with_rows, total_api_results, preview_limit):
+def execute_export_process(params_with_rows, preview_limit):
     """Exécute le processus d'export"""
     
     # 🔒 Double vérification du verrou (sécurité)
-    if st.session_state.get('export_in_progress', False) == False:
+    if not st.session_state.get('export_in_progress', False):
         st.error("❌ Export appelé sans verrou - arrêt pour éviter les doublons")
+        return
+
+    # Métriques pour obtenir le nombre total de résultats
+    metrics_result = fetch("/metrics", params_with_rows)
+    total_api_results = metrics_result.get("nbDocs", 0) if metrics_result else 0
+
+    if total_api_results == 0:
+        st.warning("Aucune review disponible pour cette combinaison")
         return
     
     # 🧹 S'assurer que all_docs est vide (sécurité supplémentaire)
@@ -1824,7 +1817,7 @@ def execute_bulk_export(params, is_preview):
     all_docs = []
     
     # ✅ CORRECTION 1: Augmenter la limite de sécurité
-    max_iterations = 1000 if not is_preview else 1  # Limite plus élevée pour les gros exports
+    max_iterations = 10000 if not is_preview else 1  # Limite plus élevée pour les gros exports
     
     # Boucle de récupération
     try:
