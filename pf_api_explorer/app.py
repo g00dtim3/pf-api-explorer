@@ -1634,8 +1634,29 @@ def display_bulk_export_interface():
     st.markdown("### 🚀 Export en masse par marque")
     
     filters = st.session_state.filters
+
+    # ✅ ÉTAT D'EXPORT - Vérifier si un export est en cours
+    export_in_progress = st.session_state.get('bulk_export_in_progress', False)
     
-    # Options d'export en masse
+    # ✅ INTERFACE FIGÉE PENDANT L'EXPORT
+    if export_in_progress:
+        st.warning("⏳ **Export en cours - Interface verrouillée**")
+        st.info("🔒 L'interface est temporairement désactivée pour éviter les interférences")
+        
+        # Afficher seulement le statut d'export
+        if 'export_status' in st.session_state:
+            st.text(st.session_state.export_status)
+        
+        # Bouton d'arrêt d'urgence (optionnel)
+        if st.button("🛑 Arrêter l'export", key="stop_export"):
+            st.session_state.bulk_export_in_progress = False
+            st.session_state.pop('export_status', None)
+            st.rerun()
+        
+        # Ne pas afficher le reste de l'interface
+        return
+        
+    # ✅ INTERFACE NORMALE (seulement si pas d'export en cours)
     with st.expander("📦 Options d'export en masse", expanded=True):
         st.markdown("""
         **Export en masse** : Récupère toutes les reviews pour les marques sélectionnées **sans** avoir besoin de sélectionner les produits individuellement.
@@ -1744,11 +1765,18 @@ def display_bulk_export_interface():
             else:
                 st.info(f"Export complet : {total_estimated:,} reviews seront exportées")
         
-        # Bouton de lancement
+        # ✅ BOUTON DE LANCEMENT AVEC PROTECTION COMPLÈTE
         if st.button("🚀 Lancer l'export en masse", key="launch_bulk_export"):
             if not filters.get("brand"):
                 st.error("❌ Aucune marque sélectionnée pour l'export en masse")
                 return
+            
+            # ✅ VERROUILLER L'INTERFACE
+            st.session_state.bulk_export_in_progress = True
+            st.session_state.export_status = "🔄 Initialisation de l'export..."
+            
+            # Forcer le rechargement pour afficher l'interface verrouillée
+            st.rerun()
             
             # Construire les paramètres pour l'export en masse
             bulk_params = {
